@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Spatie\Permission\Models\Role;
 use Exception;
 
 class UserController extends Controller
@@ -133,17 +135,166 @@ class UserController extends Controller
         }
     }
 
+    // public function updatePermissions(Request $request, $id)
+    // {
+    //     $data = $request->validate([
+    //         'permissions' => 'nullable|array',
+    //         'permissions.*' => 'required|exists:permissions,name,guard_name,api',
+    //     ]);
+
+    //     try {
+    //         $user = User::findOrFail($id);
+
+    //         // Set guard explicitly
+    //         $user->guard_name = 'api';
+
+    //         // Now sync permissions
+    //         $user->syncPermissions($data['permissions'] ?? []);
+
+    //         return response()->json([
+    //             'message' => 'User Permissions Updated Successfully',
+    //             'user' => $user->load('permissions', 'roles')
+    //         ], 200);
+    //     } catch (Exception $e) {
+    //         return response()->json([
+    //             'message' => 'Something went wrong',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
     public function updatePermissions(Request $request, $id)
     {
         $data = $request->validate([
-            'permissions' => 'nullable|array',
-            'permissions.*' => 'required|exists:permissions,name'
+            'roles' => 'nullable|array',
+            'roles.*' => 'required|exists:roles,name,guard_name,api',
         ]);
+
         try {
             $user = User::findOrFail($id);
-            $user->syncPermissions($data['permissions'] ?? []);
 
-            return response()->json(['message' => 'User Permissions Updated Successfully', 'user' => $user->load('permissions', 'roles')], 200);
+            // Ensure correct guard
+            $user->guard_name = 'api';
+
+            // Sync roles instead of permissions
+            $user->syncRoles($data['roles'] ?? []);
+
+            return response()->json([
+                'message' => 'User Roles Updated Successfully',
+                'user' => $user->load('roles', 'permissions')
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Something went wrong',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign roles to a user
+     * POST /api/users/{id}/assign-roles
+     * 
+     * If only 1 role is provided: adds it without removing existing roles
+     * If multiple roles are provided: replaces all existing roles
+     */
+    public function assignRoles(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validated = $request->validate([
+                'role_names' => 'required|array',
+                'role_names.*' => 'required|exists:roles,name,guard_name,api',
+            ]);
+
+            // Get Role models with 'api' guard explicitly
+            $roles = Role::whereIn('name', $validated['role_names'])
+                ->where('guard_name', 'api')
+                ->get();
+            
+            // If only 1 role, add it without removing existing ones
+            // If multiple roles, replace all existing roles
+            if (count($validated['role_names']) === 1) {
+                $user->assignRole($roles);
+                $message = 'Role added to user successfully';
+            } else {
+                $user->syncRoles($roles);
+                $message = 'Roles assigned to user successfully (replaced all existing)';
+            }
+
+            return response()->json([
+                'message' => $message,
+                'user' => $user->load('roles', 'permissions')
+            ], 200);
+        } catch (ModelNotFoundException $e) {
+            return errorResponse("User not found", 404);
+        } catch (Exception $e) {
+            return errorResponse($e);
+        }
+    }
+
+    /**
+     * Add roles to a user (without removing existing ones)
+     * POST /api/users/{id}/add-roles
+     */
+    public function addRoles(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validated = $request->validate([
+                'role_names' => 'required|array',
+                'role_names.*' => 'required|exists:roles,name,guard_name,api',
+            ]);
+
+            // Get Role models with 'api' guard explicitly
+            $roles = Role::whereIn('name', $validated['role_names'])
+                ->where('guard_name', 'api')
+                ->get();
+            
+            // Assign roles using Role models (this ensures correct guard)
+            $user->assignRole($roles);
+
+            return response()->json([
+                'message' => 'Roles added to user successfully',
+                'user' => $user->load('roles', 'permissions')
+            ], 200);
+        } catch (ModelNotFoundException $e) {
+            return errorResponse("User not found", 404);
+        } catch (Exception $e) {
+            return errorResponse($e);
+        }
+    }
+
+    /**
+     * Remove roles from a user
+     * POST /api/users/{id}/remove-roles
+     */
+    public function removeRoles(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $validated = $request->validate([
+                'role_names' => 'required|array',
+                'role_names.*' => 'required|exists:roles,name,guard_name,api',
+            ]);
+
+            // Get Role models with 'api' guard explicitly
+            $roles = Role::whereIn('name', $validated['role_names'])
+                ->where('guard_name', 'api')
+                ->get();
+            
+            // Remove roles using Role models (this ensures correct guard)
+            $user->removeRole($roles);
+
+            return response()->json([
+                'message' => 'Roles removed from user successfully',
+                'user' => $user->load('roles', 'permissions')
+            ], 200);
+        } catch (ModelNotFoundException $e) {
+            return errorResponse("User not found", 404);
         } catch (Exception $e) {
             return errorResponse($e);
         }

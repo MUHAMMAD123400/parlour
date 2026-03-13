@@ -36,6 +36,9 @@ Route::controller(UserController::class)->prefix('/users')->group(function () {
     Route::get('/{id}/show', 'show');
     Route::post('/{id}/update', 'update');
     Route::post('/{id}/update-permissions', 'updatePermissions');
+    Route::post('/{id}/assign-roles', 'assignRoles');
+    Route::post('/{id}/add-roles', 'addRoles');
+    Route::post('/{id}/remove-roles', 'removeRoles');
     Route::delete('/{id}/delete', 'destroy');
 });
 
@@ -44,6 +47,9 @@ Route::controller(RoleController::class)->prefix('/roles')->group(function () {
     Route::post('store', 'store');
     Route::get('/{id}/show', 'show');
     Route::post('/{id}/update', 'update');
+    Route::post('/{id}/assign-permissions', 'assignPermissions');
+    Route::post('/{id}/add-permissions', 'addPermissions');
+    Route::post('/{id}/remove-permissions', 'removePermissions');
     Route::delete('/{id}/delete', 'destroy');
 });
 
