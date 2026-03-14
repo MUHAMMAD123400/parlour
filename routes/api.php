@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\DiscountController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -73,6 +75,24 @@ Route::controller(CustomerController::class)->prefix('/customers')->group(functi
 });
 
 Route::controller(ProductController::class)->prefix('/products')->group(function () {
+    Route::get('/', 'index');
+    Route::post('store', 'store');
+    Route::get('/{id}/show', 'show');
+    Route::post('/{id}/update', 'update');
+    Route::delete('/{id}/delete', 'destroy');
+});
+
+Route::controller(ServiceController::class)->prefix('/services')->group(function () {
+    Route::get('/', 'index');
+    Route::post('store', 'store');
+    Route::get('/{id}/show', 'show');
+    Route::post('/{id}/update', 'update');
+    Route::delete('/{id}/delete', 'destroy');
+});
+
+Route::controller(DiscountController::class)->prefix('/discounts')->group(function () {
+    Route::get('/settings', 'getSettings');
+    Route::post('/settings', 'updateSettings');
     Route::get('/', 'index');
     Route::post('store', 'store');
     Route::get('/{id}/show', 'show');
