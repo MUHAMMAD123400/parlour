@@ -47,6 +47,11 @@ class UserController extends Controller
             //     }
             // }
 
+            // Filter by status
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
             $per_page = $request->per_page ?? 10;
 
             $users = $query->when($request->filled('search'), function ($query) use ($request) {
@@ -62,22 +67,35 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'string|required|max:30',
-            'email' => 'string|required|unique:users',
-            'password' => 'string|required',
-            'role' => 'nullable|exists:roles,name',
-            'status' => 'required|in:active,inactive',
-            'photo' => 'nullable|string',
-        ]);
+
         try {
+
+            // dd($request->all());
+            $data = $request->validate([
+                'name' => 'string|required|max:30',
+                'email' => 'string|required|unique:users',
+                'password' => 'string|required',
+                'role' => 'nullable|exists:roles,name,guard_name,api',
+                'status' => 'required|in:1,0',
+                // 'photo' => 'nullable|string',
+            ]);
+
             $data['password'] = Hash::make($request->password);
             // $data['display_password'] = $request->password;
             $user = User::create($data);
-            if ($data['role'])
-                $user->syncRoles($data['role']);
 
-            return response()->json(['message' => 'User Created Successfully', 'user' => $user], 200);
+            // Assign role with 'api' guard
+            if (!empty($data['role'])) {
+                $role = Role::where('name', $data['role'])
+                    ->where('guard_name', 'api')
+                    ->first();
+
+                if ($role) {
+                    $user->syncRoles($role);
+                }
+            }
+
+            return response()->json(['message' => 'User Created Successfully', 'user' => $user->load('roles', 'permissions')], 200);
         } catch (Exception $e) {
             return errorResponse($e);
         }
@@ -103,33 +121,50 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
-        $data = $request->validate([
-            'name' => 'string|required|max:30',
-            // 'email' => 'string|required|unique:users',
-            'password' => 'nullable',
-            'role' => 'nullable|exists:roles,name',
-            'status' => 'required|in:active,inactive',
-            'photo' => 'nullable|string',
-            // 'permissions' => 'nullable|array',
-            // 'permissions.*' => 'required|exists:permissions,name'
-        ]);
 
         try {
 
+            $data = $request->validate([
+                'name' => 'string|required|max:30',
+                // 'email' => 'string|required|unique:users',
+                'password' => 'nullable',
+                'role' => 'nullable|exists:roles,name,guard_name,api',
+                'status' => 'required|in:1,0',
+                'photo' => 'nullable|string',
+                // 'permissions' => 'nullable|array',
+                // 'permissions.*' => 'required|exists:permissions,name'
+            ]);
+
+
             $user = User::findOrFail($id);
             // $user->syncPermissions($data['permissions'] ?? []);
-            $user->syncRoles($data['role']);
 
-            if ($data['password']) {
+            // Assign role with 'api' guard
+            if (!empty($data['role'])) {
+                $role = Role::where('name', $data['role'])
+                    ->where('guard_name', 'api')
+                    ->first();
+
+                if ($role) {
+                    $user->syncRoles($role);
+                }
+            } else {
+                // If no role provided, remove all roles
+                $user->syncRoles([]);
+            }
+
+            if (isset($data['password']) && $data['password']) {
                 $data['password'] = Hash::make($request->password);
             } else {
                 unset($data['password']); // remove it so it won't update
             }
 
+            // Remove role from data array since we handle it separately
+            unset($data['role']);
 
             $user->fill($data)->save();
 
-            return response()->json(['message' => 'User Updated Successfully', 'user' => $user->load('permissions', 'roles')], 200);
+            return response()->json(['message' => 'User Updated Successfully', 'user' => $user->load('roles')], 200);
         } catch (Exception $e) {
             return errorResponse($e);
         }
@@ -212,7 +247,7 @@ class UserController extends Controller
             $roles = Role::whereIn('name', $validated['role_names'])
                 ->where('guard_name', 'api')
                 ->get();
-            
+
             // If only 1 role, add it without removing existing ones
             // If multiple roles, replace all existing roles
             if (count($validated['role_names']) === 1) {
@@ -252,7 +287,7 @@ class UserController extends Controller
             $roles = Role::whereIn('name', $validated['role_names'])
                 ->where('guard_name', 'api')
                 ->get();
-            
+
             // Assign roles using Role models (this ensures correct guard)
             $user->assignRole($roles);
 
@@ -285,7 +320,7 @@ class UserController extends Controller
             $roles = Role::whereIn('name', $validated['role_names'])
                 ->where('guard_name', 'api')
                 ->get();
-            
+
             // Remove roles using Role models (this ensures correct guard)
             $user->removeRole($roles);
 

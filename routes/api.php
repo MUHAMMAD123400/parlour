@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\ProductController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -56,6 +58,22 @@ Route::controller(RoleController::class)->prefix('/roles')->group(function () {
 Route::controller(PermissionController::class)->prefix('/permissions')->group(function () {
     Route::get('/', 'index');
     Route::get('/all', 'fetchAll');
+    Route::post('store', 'store');
+    Route::get('/{id}/show', 'show');
+    Route::post('/{id}/update', 'update');
+    Route::delete('/{id}/delete', 'destroy');
+});
+
+Route::controller(CustomerController::class)->prefix('/customers')->group(function () {
+    Route::get('/', 'index');
+    Route::post('store', 'store');
+    Route::get('/{id}/show', 'show');
+    Route::post('/{id}/update', 'update');
+    Route::delete('/{id}/delete', 'destroy');
+});
+
+Route::controller(ProductController::class)->prefix('/products')->group(function () {
+    Route::get('/', 'index');
     Route::post('store', 'store');
     Route::get('/{id}/show', 'show');
     Route::post('/{id}/update', 'update');

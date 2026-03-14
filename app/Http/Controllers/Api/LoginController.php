@@ -25,6 +25,13 @@ class LoginController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        // Check if user is active (status = '1')
+        if ($user->status !== '1') {
+            return response()->json([
+                'message' => 'Your account is inactive. Please contact administrator.'
+            ], 403);
+        }
+
         // IP Restriction Check: Allow superadmin or users with permission to bypass IP restrictions
         // if (!($user->hasRole('superadmin') || $user->can('user.access.portal.anywhere'))) {
         //     $allowedIps = Ip::pluck('ip')->toArray();
