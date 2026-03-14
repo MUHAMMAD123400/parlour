@@ -43,4 +43,30 @@ class Discount extends Model
         'auto_apply' => 'boolean',
         'usage_count' => 'integer',
     ];
+
+    /**
+     * Get the service models associated with this discount
+     * Since services are stored as JSON array of IDs, we query Service model directly
+     * Access via: $discount->serviceModels
+     */
+    public function getServiceModelsAttribute()
+    {
+        // Access raw attribute value from attributes array (before casting)
+        $serviceIds = $this->attributes['services'] ?? null;
+        
+        if (empty($serviceIds)) {
+            return collect([]);
+        }
+        
+        // Decode JSON string to array
+        if (is_string($serviceIds)) {
+            $serviceIds = json_decode($serviceIds, true);
+        }
+        
+        if (empty($serviceIds) || !is_array($serviceIds)) {
+            return collect([]);
+        }
+        
+        return Service::whereIn('id', $serviceIds)->get();
+    }
 }

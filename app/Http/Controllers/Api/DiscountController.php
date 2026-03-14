@@ -124,6 +124,14 @@ class DiscountController extends Controller
             }
 
             $discounts = $query->orderBy('created_at', 'desc')->paginate($per_page);
+            
+            // Load service models for each discount (services are stored as JSON array of IDs)
+            // Access via: $discount->service_models
+            $discounts->getCollection()->transform(function ($discount) {
+                // The service_models attribute will be automatically available via the accessor
+                $discount->service_models = $discount->serviceModels;
+                return $discount;
+            });
 
             return \Helper::paginatedResponse($discounts);
         } catch (Exception $e) {

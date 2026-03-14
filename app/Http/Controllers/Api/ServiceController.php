@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Service;
+use App\Models\Discount;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Exception;
@@ -144,11 +145,40 @@ class ServiceController extends Controller
     {
         try {
             $service = Service::findOrFail($id);
+            $serviceId = $service->id;
+            
+            // Remove this service ID from all discounts that reference it
+            // Get all discounts that have services array (applies_to is specific_services)
+            $discounts = Discount::where('applies_to', 'specific_services')
+                ->whereNotNull('services')
+                ->get();
+            
+            $updatedCount = 0;
+            foreach ($discounts as $discount) {
+                $services = $discount->services ?? [];
+                
+                // Check if service ID exists in the array
+                if (is_array($services) && in_array($serviceId, $services)) {
+                    // Remove the service ID from the array
+                    $services = array_values(array_filter($services, function($sid) use ($serviceId) {
+                        return (int)$sid !== (int)$serviceId;
+                    }));
+                    
+                    // Update the discount with the cleaned services array
+                    // If array is empty, set to null
+                    $discount->services = empty($services) ? null : $services;
+                    $discount->save();
+                    $updatedCount++;
+                }
+            }
+            
+            // Delete the service
             $service->delete();
 
             return response()->json([
                 'message' => 'Service deleted successfully',
-                'data' => $service
+                'data' => $service,
+                'updated_discounts_count' => $updatedCount
             ], 200);
         } catch (ModelNotFoundException $e) {
             return errorResponse("Service not found", 404);
