@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\BillingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -70,6 +71,8 @@ Route::controller(CustomerController::class)->prefix('/customers')->group(functi
     Route::get('/', 'index');
     Route::post('store', 'store');
     Route::get('/{id}/show', 'show');
+    Route::get('/{id}/visit-history', 'visitHistory');
+    Route::get('/{id}/spending-analysis', 'spendingAnalysis');
     Route::post('/{id}/update', 'update');
     Route::delete('/{id}/delete', 'destroy');
 });
@@ -97,5 +100,12 @@ Route::controller(DiscountController::class)->prefix('/discounts')->group(functi
     Route::post('store', 'store');
     Route::get('/{id}/show', 'show');
     Route::post('/{id}/update', 'update');
+    Route::delete('/{id}/delete', 'destroy');
+});
+
+Route::controller(BillingController::class)->prefix('/bills')->group(function () {
+    Route::get('/', 'index');
+    Route::post('store', 'store');
+    Route::get('/{id}/show', 'show');
     Route::delete('/{id}/delete', 'destroy');
 });

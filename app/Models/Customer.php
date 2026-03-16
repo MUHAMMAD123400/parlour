@@ -33,4 +33,9 @@ class Customer extends Model
         'date_of_birth' => 'date',
         'tags' => 'array',
     ];
+
+    public function bills()
+    {
+        return $this->hasMany(Bill::class);
+    }
 }
