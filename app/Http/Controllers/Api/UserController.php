@@ -14,12 +14,11 @@ class UserController extends Controller
 {
     public function __construct()
     {
-        // $this->middleware('permission:user.index')->only(['index']);
-        // $this->middleware('permission:user.show')->only(['show']);
-        // $this->middleware('permission:user.create')->only(['create', 'store']);
-        // $this->middleware('permission:user.edit')->only(['edit', 'update']);
-        // $this->middleware('permission:user.delete')->only(['destroy']);
-        // $this->middleware('permission:invoice.assign.team.user')->only(['fetchForAssignment']);
+        $this->middleware('permission:user.index')->only(['index']);
+        $this->middleware('permission:user.show')->only(['show']);
+        $this->middleware('permission:user.create')->only(['create', 'store']);
+        $this->middleware('permission:user.edit')->only(['edit', 'update']);
+        $this->middleware('permission:user.delete')->only(['destroy']);
     }
 
     public function index(Request $request)
@@ -198,7 +197,7 @@ class UserController extends Controller
     //     }
     // }
 
-    public function updatePermissions(Request $request, $id)
+    public function updateRole(Request $request, $id)
     {
         $data = $request->validate([
             'roles' => 'nullable|array',

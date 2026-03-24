@@ -10,23 +10,10 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\DiscountController;
 use App\Http\Controllers\Api\BillingController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Route;   
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-
-Route::get('test', function () {
-    return response()->json(['message' => 'API route works!']);
-});
-
-// Example API route
-Route::get('users', function () {
-    return response()->json([
-        ['id' => 1, 'name' => 'John'],
-        ['id' => 2, 'name' => 'Jane'],
-    ]);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/users', [UserController::class, 'index']);
 });
 
 Route::controller(LoginController::class)->group(function () {
@@ -35,17 +22,17 @@ Route::controller(LoginController::class)->group(function () {
 
 Route::post('/logout', [LoginController::class, 'logout']);
 
-Route::controller(UserController::class)->prefix('/users')->group(function () {
-    Route::get('/', 'index');
-    Route::post('store', 'store');
-    Route::get('/{id}/show', 'show');
-    Route::post('/{id}/update', 'update');
-    Route::post('/{id}/update-permissions', 'updatePermissions');
-    Route::post('/{id}/assign-roles', 'assignRoles');
-    Route::post('/{id}/add-roles', 'addRoles');
-    Route::post('/{id}/remove-roles', 'removeRoles');
-    Route::delete('/{id}/delete', 'destroy');
-});
+// Route::controller(UserController::class)->prefix('/users')->group(function () {
+//     Route::get('/', 'index');
+//     Route::post('store', 'store');
+//     Route::get('/{id}/show', 'show');
+//     Route::post('/{id}/update', 'update');
+//     Route::post('/{id}/update-role', 'updateRole');
+//     Route::post('/{id}/assign-roles', 'assignRoles');
+//     Route::post('/{id}/add-roles', 'addRoles');
+//     Route::post('/{id}/remove-roles', 'removeRoles');
+//     Route::delete('/{id}/delete', 'destroy');
+// });
 
 Route::controller(RoleController::class)->prefix('/roles')->group(function () {
     Route::get('/', 'index');
