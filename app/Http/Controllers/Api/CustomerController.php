@@ -168,7 +168,7 @@ class CustomerController extends Controller
             $per_page = $request->per_page ?? 10;
             
             $query = Bill::where('customer_id', $id)
-                ->with(['items.service', 'user'])
+                ->with(['items.service', 'items.category', 'user'])
                 ->orderBy('created_at', 'desc');
             
             // Filter by date range
@@ -208,7 +208,7 @@ class CustomerController extends Controller
             
             // Get all bills
             $bills = Bill::where('customer_id', $id)
-                ->with('items.service')
+                ->with(['items.service', 'items.category'])
                 ->orderBy('created_at', 'asc')
                 ->get();
             
@@ -274,7 +274,7 @@ class CustomerController extends Controller
         
         foreach ($bills as $bill) {
             foreach ($bill->items as $item) {
-                $category = $item->category ?? 'Other';
+                $category = $item->category->category_name ?? 'Other';
                 if (!isset($serviceCounts[$category])) {
                     $serviceCounts[$category] = 0;
                 }

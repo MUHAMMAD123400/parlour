@@ -69,4 +69,23 @@ class Discount extends Model
         
         return Service::whereIn('id', $serviceIds)->get();
     }
+
+    public function getCategoryModelsAttribute()
+    {
+        $categoryIds = $this->attributes['categories'] ?? null;
+
+        if (empty($categoryIds)) {
+            return collect([]);
+        }
+
+        if (is_string($categoryIds)) {
+            $categoryIds = json_decode($categoryIds, true);
+        }
+
+        if (empty($categoryIds) || !is_array($categoryIds)) {
+            return collect([]);
+        }
+
+        return Category::whereIn('id', $categoryIds)->get();
+    }
 }

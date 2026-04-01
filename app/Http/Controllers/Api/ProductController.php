@@ -28,7 +28,7 @@ class ProductController extends Controller
         try {
             $per_page = $request->per_page ?? 10;
             
-            $query = Product::query();
+            $query = Product::with('category');
 
             // Search functionality
             if ($request->filled('search')) {
@@ -36,14 +36,16 @@ class ProductController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->where('product_name', 'like', '%' . $search . '%')
                       ->orWhere('brand', 'like', '%' . $search . '%')
-                      ->orWhere('category', 'like', '%' . $search . '%')
-                      ->orWhere('description', 'like', '%' . $search . '%');
+                      ->orWhere('description', 'like', '%' . $search . '%')
+                      ->orWhereHas('category', function ($categoryQuery) use ($search) {
+                          $categoryQuery->where('category_name', 'like', '%' . $search . '%');
+                      });
                 });
             }
 
             // Filter by category
-            if ($request->filled('category')) {
-                $query->where('category', $request->category);
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
             }
 
             // Filter by brand
@@ -102,7 +104,7 @@ class ProductController extends Controller
             $validated = $request->validate([
                 'product_name' => 'required|string|max:255',
                 'brand' => 'nullable|string|max:255',
-                'category' => 'required|string|max:255',
+                'category_id' => 'required|integer|exists:categories,id',
                 'description' => 'nullable|string',
                 'quantity_in_stock' => 'required|integer|min:0',
                 'unit' => 'nullable|string|max:50',
@@ -155,7 +157,7 @@ class ProductController extends Controller
             $validated = $request->validate([
                 'product_name' => 'required|string|max:255',
                 'brand' => 'nullable|string|max:255',
-                'category' => 'required|string|max:255',
+                'category_id' => 'required|integer|exists:categories,id',
                 'description' => 'nullable|string',
                 'quantity_in_stock' => 'required|integer|min:0',
                 'unit' => 'nullable|string|max:50',

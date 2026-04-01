@@ -29,4 +29,19 @@ class Category extends Model
     protected $casts = [
         'status' => 'string',
     ];
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    public function services()
+    {
+        return $this->hasMany(Service::class);
+    }
+
+    public function billItems()
+    {
+        return $this->hasMany(BillItem::class);
+    }
 }

@@ -17,7 +17,7 @@ class Product extends Model
     protected $fillable = [
         'product_name',
         'brand',
-        'category',
+        'category_id',
         'description',
         'quantity_in_stock',
         'unit',
@@ -33,9 +33,15 @@ class Product extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'category_id' => 'integer',
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'quantity_in_stock' => 'integer',
         'minimum_stock_alert' => 'integer',
     ];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
 }

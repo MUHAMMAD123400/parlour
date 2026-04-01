@@ -29,21 +29,23 @@ class ServiceController extends Controller
         try {
             $per_page = $request->per_page ?? 10;
             
-            $query = Service::query();
+            $query = Service::with('category');
 
             // Search functionality
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
                     $q->where('service_name', 'like', '%' . $search . '%')
-                      ->orWhere('category', 'like', '%' . $search . '%')
-                      ->orWhere('description', 'like', '%' . $search . '%');
+                      ->orWhere('description', 'like', '%' . $search . '%')
+                      ->orWhereHas('category', function ($categoryQuery) use ($search) {
+                          $categoryQuery->where('category_name', 'like', '%' . $search . '%');
+                      });
                 });
             }
 
             // Filter by category
-            if ($request->filled('category')) {
-                $query->where('category', $request->category);
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
             }
 
             $services = $query->orderBy('created_at', 'desc')->paginate($per_page);
@@ -63,7 +65,7 @@ class ServiceController extends Controller
         try {
             $validated = $request->validate([
                 'service_name' => 'required|string|max:255',
-                'category' => 'required|string|max:255',
+                'category_id' => 'required|integer|exists:categories,id',
                 'status' => 'nullable|in:1,0',
                 'price' => 'required|numeric|min:0',
                 'duration' => 'required|integer|min:1',
@@ -117,7 +119,7 @@ class ServiceController extends Controller
 
             $validated = $request->validate([
                 'service_name' => 'required|string|max:255',
-                'category' => 'required|string|max:255',
+                'category_id' => 'required|integer|exists:categories,id',
                 'status' => 'nullable|in:1,0',
                 'price' => 'required|numeric|min:0',
                 'duration' => 'required|integer|min:1',

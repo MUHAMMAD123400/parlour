@@ -19,7 +19,7 @@ class BillItem extends Model
         'service_id',
         'item_name',
         'item_type',
-        'category',
+        'category_id',
         'quantity',
         'unit_price',
         'total_price',
@@ -32,6 +32,7 @@ class BillItem extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'category_id' => 'integer',
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
         'total_price' => 'decimal:2',
@@ -52,5 +53,10 @@ class BillItem extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
     }
 }

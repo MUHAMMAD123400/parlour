@@ -16,7 +16,7 @@ class Service extends Model
      */
     protected $fillable = [
         'service_name',
-        'category',
+        'category_id',
         'status',
         'price',
         'duration',
@@ -29,8 +29,14 @@ class Service extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'category_id' => 'integer',
         'price' => 'decimal:2',
         'duration' => 'integer',
         'status' => 'string',
     ];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
 }

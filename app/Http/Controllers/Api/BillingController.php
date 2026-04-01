@@ -32,7 +32,7 @@ class BillingController extends Controller
         try {
             $per_page = $request->per_page ?? 10;
             
-            $query = Bill::with(['customer', 'user', 'items.service']);
+            $query = Bill::with(['customer', 'user', 'items.service', 'items.category']);
 
             // Search functionality
             if ($request->filled('search')) {
@@ -140,7 +140,7 @@ class BillingController extends Controller
                         'service_id' => $item['service_id'],
                         'item_name' => $service->service_name,
                         'item_type' => 'service',
-                        'category' => $service->category,
+                        'category_id' => $service->category_id,
                         'quantity' => $item['quantity'],
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
@@ -159,7 +159,7 @@ class BillingController extends Controller
                 DB::commit();
 
                 // Load relationships
-                $bill->load(['customer', 'user', 'items.service']);
+                $bill->load(['customer', 'user', 'items.service', 'items.category']);
 
                 return response()->json([
                     'message' => 'Bill created successfully',
@@ -181,7 +181,7 @@ class BillingController extends Controller
     public function show($id)
     {
         try {
-            $bill = Bill::with(['customer', 'user', 'items.service'])->findOrFail($id);
+            $bill = Bill::with(['customer', 'user', 'items.service', 'items.category'])->findOrFail($id);
             
             return response()->json([
                 'message' => 'Bill fetched successfully',
