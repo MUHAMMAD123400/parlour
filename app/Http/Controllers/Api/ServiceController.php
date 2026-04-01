@@ -13,11 +13,11 @@ class ServiceController extends Controller
 {
     public function __construct()
     {
-        // $this->middleware('permission:service.index')->only(['index']);
-        // $this->middleware('permission:service.show')->only(['show']);
-        // $this->middleware('permission:service.create')->only(['store']);
-        // $this->middleware('permission:service.edit')->only(['update']);
-        // $this->middleware('permission:service.delete')->only(['destroy']);
+        $this->middleware('permission:service.index')->only(['index']);
+        $this->middleware('permission:service.show')->only(['show']);
+        $this->middleware('permission:service.create')->only(['store']);
+        $this->middleware('permission:service.edit')->only(['update']);
+        $this->middleware('permission:service.delete')->only(['destroy']);
     }
 
     /**

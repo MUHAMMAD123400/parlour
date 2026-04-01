@@ -14,11 +14,11 @@ class RoleController extends Controller
 {
     public function __construct()
     {
-        // $this->middleware('permission:role.index')->only(['index']);
-        // $this->middleware('permission:role.show')->only(['show']);
-        // $this->middleware('permission:role.create')->only(['create', 'store']);
-        // $this->middleware('permission:role.edit')->only(['edit', 'update']);
-        // $this->middleware('permission:role.delete')->only(['destroy']);
+        $this->middleware('permission:role.index')->only(['index']);
+        $this->middleware('permission:role.show')->only(['show']);
+        $this->middleware('permission:role.create')->only(['create', 'store']);
+        $this->middleware('permission:role.edit')->only(['edit', 'update']);
+        $this->middleware('permission:role.delete')->only(['destroy']);
     }
 
     public function index(Request $request)
@@ -160,11 +160,8 @@ class RoleController extends Controller
     }
 
     /**
-     * Assign permissions to a role
+     * Sync permissions for a role (replace existing permissions)
      * POST /api/roles/{id}/assign-permissions
-     * 
-     * If only 1 permission is provided: adds it without removing existing permissions
-     * If multiple permissions are provided: replaces all existing permissions
      */
     public function assignPermissions(Request $request, $id)
     {
@@ -181,18 +178,11 @@ class RoleController extends Controller
                 ->where('guard_name', 'api')
                 ->get();
 
-            // If only 1 permission, add it without removing existing ones
-            // If multiple permissions, replace all existing permissions
-            if (count($validated['permission_names']) === 1) {
-                $role->givePermissionTo($permissions);
-                $message = 'Permission added to role successfully';
-            } else {
-                $role->syncPermissions($permissions);
-                $message = 'Permissions assigned to role successfully (replaced all existing)';
-            }
+            // Single source of truth: always replace existing permissions.
+            $role->syncPermissions($permissions);
 
             return response()->json([
-                'message' => $message,
+                'message' => 'Role permissions synced successfully',
                 'data' => $role->load('permissions')
             ], 200);
         } catch (ModelNotFoundException $e) {
@@ -202,59 +192,4 @@ class RoleController extends Controller
         }
     }
 
-    /**
-     * Add permissions to a role (without removing existing ones)
-     * POST /api/roles/{id}/add-permissions
-     */
-    public function addPermissions(Request $request, $id)
-    {
-        try {
-            $role = Role::findOrFail($id);
-
-            $validated = $request->validate([
-                'permission_names' => 'required|array',
-                'permission_names.*' => 'required|exists:permissions,name,guard_name,api',
-            ]);
-
-            // Give permissions (add to existing permissions)
-            $role->givePermissionTo($validated['permission_names']);
-
-            return response()->json([
-                'message' => 'Permissions added to role successfully',
-                'data' => $role->load('permissions')
-            ], 200);
-        } catch (ModelNotFoundException $e) {
-            return errorResponse("Role not found", 404);
-        } catch (Exception $e) {
-            return errorResponse($e);
-        }
-    }
-
-    /**
-     * Remove permissions from a role
-     * POST /api/roles/{id}/remove-permissions
-     */
-    public function removePermissions(Request $request, $id)
-    {
-        try {
-            $role = Role::findOrFail($id);
-
-            $validated = $request->validate([
-                'permission_names' => 'required|array',
-                'permission_names.*' => 'required|exists:permissions,name,guard_name,api',
-            ]);
-
-            // Revoke permissions
-            $role->revokePermissionTo($validated['permission_names']);
-
-            return response()->json([
-                'message' => 'Permissions removed from role successfully',
-                'data' => $role->load('permissions')
-            ], 200);
-        } catch (ModelNotFoundException $e) {
-            return errorResponse("Role not found", 404);
-        } catch (Exception $e) {
-            return errorResponse($e);
-        }
-    }
 }

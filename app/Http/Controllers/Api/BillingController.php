@@ -17,10 +17,10 @@ class BillingController extends Controller
 {
     public function __construct()
     {
-        // $this->middleware('permission:billing.index')->only(['index']);
-        // $this->middleware('permission:billing.show')->only(['show']);
-        // $this->middleware('permission:billing.create')->only(['store']);
-        // $this->middleware('permission:billing.delete')->only(['destroy']);
+        $this->middleware('permission:billing.index')->only(['index']);
+        $this->middleware('permission:billing.show')->only(['show']);
+        $this->middleware('permission:billing.create')->only(['store']);
+        $this->middleware('permission:billing.delete')->only(['destroy']);
     }
 
     /**
