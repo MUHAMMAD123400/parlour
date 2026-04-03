@@ -13,6 +13,8 @@ class PermissionSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         $modules = [
+            'module' => ['index', 'show', 'create', 'edit', 'delete'],
+            'company' => ['index', 'show', 'create', 'edit', 'delete'],
             'user' => ['index', 'show', 'create', 'edit', 'delete'],
             'role' => ['index', 'show', 'create', 'edit', 'delete'],
             'permission' => ['index', 'show', 'create', 'edit', 'delete'],

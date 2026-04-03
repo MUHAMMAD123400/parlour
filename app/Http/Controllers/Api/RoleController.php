@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Http\Request;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Exception;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use App\Models\Company;
+use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
@@ -19,6 +20,18 @@ class RoleController extends Controller
         $this->middleware('permission:role.create')->only(['create', 'store']);
         $this->middleware('permission:role.edit')->only(['edit', 'update']);
         $this->middleware('permission:role.delete')->only(['destroy']);
+        $this->middleware('role:super_admin')->only(['assignPermissions']);
+    }
+
+    protected function companyPermissionModuleKeys(Request $request): array
+    {
+        if ($request->user()->isSuperAdmin() || ! $request->user()->company_id) {
+            return [];
+        }
+
+        $company = Company::find($request->user()->company_id);
+
+        return $company ? $company->activePermissionModuleKeys() : [];
     }
 
     public function index(Request $request)
@@ -29,6 +42,19 @@ class RoleController extends Controller
                 $query->where('name', 'like', '%' . $request->search . '%');
             })
                 ->paginate($per_page);
+
+            if (! $request->user()->isSuperAdmin()) {
+                $keys = $this->companyPermissionModuleKeys($request);
+                $roles->getCollection()->transform(function ($role) use ($keys) {
+                    $role->setRelation(
+                        'permissions',
+                        $role->permissions->whereIn('module', $keys)->values()
+                    );
+
+                    return $role;
+                });
+            }
+
             return \Helper::paginatedResponse($roles);
         } catch (Exception $e) {
             return errorResponse($e);
@@ -39,6 +65,13 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
 
             $validated = $request->validate([
@@ -69,6 +102,13 @@ class RoleController extends Controller
 
     public function update(Request $request, $id)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
             $role = Role::findOrFail($id);
 
@@ -102,8 +142,15 @@ class RoleController extends Controller
     /**
      * Delete a role safely (API guard compatible)
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
             // Find the role
             $role = Role::findOrFail($id);
@@ -147,10 +194,19 @@ class RoleController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
             $role = Role::with('permissions')->findOrFail($id);
+
+            if (! $request->user()->isSuperAdmin()) {
+                $keys = $this->companyPermissionModuleKeys($request);
+                $role->setRelation(
+                    'permissions',
+                    $role->permissions->whereIn('module', $keys)->values()
+                );
+            }
+
             return response()->json($role);
         } catch (ModelNotFoundException $e) {
             return errorResponse("Role not found", 404);

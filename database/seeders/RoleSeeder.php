@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -12,7 +13,7 @@ class RoleSeeder extends Seeder
     {
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        Role::updateOrCreate(
+        $superAdmin = Role::updateOrCreate(
             [
                 'name' => 'super_admin',
                 'guard_name' => 'api',
@@ -21,6 +22,18 @@ class RoleSeeder extends Seeder
                 'description' => 'System super admin role',
             ]
         );
+
+        Role::updateOrCreate(
+            [
+                'name' => 'company_admin',
+                'guard_name' => 'api',
+            ],
+            [
+                'description' => 'Company administrator; direct permissions from assigned company modules',
+            ]
+        );
+
+        $superAdmin->syncPermissions(Permission::where('guard_name', 'api')->get());
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }

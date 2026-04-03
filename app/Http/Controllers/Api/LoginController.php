@@ -66,17 +66,41 @@ class LoginController extends Controller
 
         $token = $tokenResult->plainTextToken;
 
-        // Load roles and permissions
-        $user->load(['roles', 'permissions']);
+        $user->load([
+            'roles',
+            'permissions',
+            'company' => function ($q) {
+                $q->with(['modules' => function ($mq) {
+                    $mq->wherePivot('company_module_status', '1')->wherePivotNull('deleted_at');
+                }]);
+            },
+        ]);
 
         // Get all permissions: direct permissions + permissions from roles
         $allPermissions = $user->getAllPermissions()->pluck('name');
+
+        $companyPayload = null;
+        if ($user->company_id && $user->relationLoaded('company') && $user->company) {
+            $companyPayload = [
+                'id' => $user->company->id,
+                'company_name' => $user->company->company_name,
+                'modules' => $user->company->modules->map(function ($m) {
+                    return [
+                        'id' => $m->id,
+                        'module_name' => $m->module_name,
+                        'permission_module_key' => $m->permission_module_key,
+                    ];
+                })->values(),
+            ];
+        }
 
         return response()->json([
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'company_id' => $user->company_id,
+                'company' => $companyPayload,
                 'roles' => $user->getRoleNames(), // returns a collection of role names
                 'permissions' => $allPermissions, // includes direct permissions + permissions from roles
             ],

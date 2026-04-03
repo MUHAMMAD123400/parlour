@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Company;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 use Exception;
@@ -18,12 +19,35 @@ class PermissionController extends Controller
         $this->middleware('permission:permission.delete')->only(['destroy']);
     }
 
+    protected function permissionQueryForRequestUser(Request $request)
+    {
+        $query = Permission::where('guard_name', 'api');
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            return $query;
+        }
+
+        if (! $user->company_id) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $company = Company::find($user->company_id);
+        $keys = $company ? $company->activePermissionModuleKeys() : [];
+
+        if ($keys === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn('module', $keys);
+    }
+
     public function index(Request $request)
     {
         try {
             $per_page = $request->per_page ?? 10;
 
-            $permissions = Permission::where('guard_name', 'api')
+            $permissions = $this->permissionQueryForRequestUser($request)
                 ->orderBy('name', 'asc')
                 ->when($request->filled('search'), function ($query) use ($request) {
                     $query->where(function ($q) use ($request) {
@@ -52,7 +76,7 @@ class PermissionController extends Controller
     public function fetchAll(Request $request)
     {
         try {
-            $permissions = Permission::where('guard_name', 'api')
+            $permissions = $this->permissionQueryForRequestUser($request)
                 ->orderBy('name', 'asc')
                 ->select('id', 'name', 'title', 'type', 'module', 'group_type')
                 ->get();
@@ -65,6 +89,13 @@ class PermissionController extends Controller
 
     public function store(Request $request)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
             $validated = $request->validate([
                 'name' => 'required|string|unique:permissions,name,NULL,id,guard_name,api|max:255',
@@ -97,6 +128,13 @@ class PermissionController extends Controller
 
     public function update(Request $request, $id)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
             $permission = Permission::findOrFail($id);
 
@@ -127,8 +165,15 @@ class PermissionController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if (! $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'message' => 'You do not have permission to perform this action.',
+                'error' => 'forbidden',
+            ], 403);
+        }
+
         try {
             $permission = Permission::with('roles')->findOrFail($id);
 
@@ -146,10 +191,11 @@ class PermissionController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
-            $permission = Permission::findOrFail($id);
+            $permission = $this->permissionQueryForRequestUser($request)->where('id', $id)->firstOrFail();
+
             return response()->json($permission);
         } catch (Exception $e) {
             return errorResponse($e, 404);

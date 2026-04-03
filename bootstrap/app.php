@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
+            'company.module' => \App\Http\Middleware\EnsureCompanyHasModule::class,
         ]);
 
         // Avoid route('login') when unauthenticated web requests have no named login route
