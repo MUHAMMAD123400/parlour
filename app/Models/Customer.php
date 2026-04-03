@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
+    use BelongsToCompany;
     use HasFactory;
 
     /**
@@ -15,6 +17,7 @@ class Customer extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'company_id',
         'name',
         'phone',
         'email',
@@ -30,6 +33,7 @@ class Customer extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'company_id' => 'integer',
         'date_of_birth' => 'date',
         'tags' => 'array',
     ];

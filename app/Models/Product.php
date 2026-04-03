@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
+    use BelongsToCompany;
     use HasFactory;
 
     /**
@@ -15,6 +17,7 @@ class Product extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'company_id',
         'product_name',
         'brand',
         'category_id',
@@ -33,6 +36,7 @@ class Product extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'company_id' => 'integer',
         'category_id' => 'integer',
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Discount extends Model
 {
+    use BelongsToCompany;
     use HasFactory;
 
     /**
@@ -15,6 +17,7 @@ class Discount extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'company_id',
         'offer_name',
         'description',
         'discount_type',
@@ -35,6 +38,7 @@ class Discount extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'company_id' => 'integer',
         'discount_value' => 'decimal:2',
         'categories' => 'array',
         'services' => 'array',

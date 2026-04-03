@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Discount;
 use App\Models\DiscountSetting;
-use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DiscountController extends Controller
 {
@@ -24,22 +25,31 @@ class DiscountController extends Controller
      * Get discount settings
      * GET /api/discounts/settings
      */
-    public function getSettings()
+    public function getSettings(Request $request)
     {
         try {
-            $settings = DiscountSetting::first();
-            
-            // If no settings exist, return defaults
-            if (!$settings) {
-                $settings = DiscountSetting::create([
+            $user = $request->user();
+            if ($user->isSuperAdmin()) {
+                $request->validate([
+                    'company_id' => 'required|integer|exists:companies,id',
+                ]);
+                $companyId = (int) $request->input('company_id');
+            } else {
+                $this->forbidGuestCompanyStaff($user);
+                $companyId = (int) $user->company_id;
+            }
+
+            $settings = DiscountSetting::firstOrCreate(
+                ['company_id' => $companyId],
+                [
                     'staff_discount_limit' => 10,
                     'require_discount_reason' => true,
-                ]);
-            }
+                ]
+            );
 
             return response()->json([
                 'message' => 'Discount settings fetched successfully',
-                'data' => $settings
+                'data' => $settings,
             ], 200);
         } catch (Exception $e) {
             return errorResponse($e);
@@ -53,22 +63,36 @@ class DiscountController extends Controller
     public function updateSettings(Request $request)
     {
         try {
+            $user = $request->user();
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
+            if (! $user->isSuperAdmin()) {
+                $this->forbidGuestCompanyStaff($user);
+            }
+
             $validated = $request->validate([
+                'company_id' => $companyRule,
                 'staff_discount_limit' => 'required|integer|min:0|max:50',
                 'require_discount_reason' => 'required',
             ]);
 
-            $settings = DiscountSetting::first();
-            
-            if (!$settings) {
-                $settings = DiscountSetting::create($validated);
-            } else {
-                $settings->update($validated);
-            }
+            $settings = DiscountSetting::updateOrCreate(
+                ['company_id' => $companyId],
+                [
+                    'staff_discount_limit' => $validated['staff_discount_limit'],
+                    'require_discount_reason' => $validated['require_discount_reason'],
+                ]
+            );
 
             return response()->json([
                 'message' => 'Discount settings updated successfully',
-                'data' => $settings
+                'data' => $settings,
             ], 200);
         } catch (Exception $e) {
             return errorResponse($e);
@@ -83,8 +107,11 @@ class DiscountController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            
+
             $query = Discount::query();
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            }
 
             // Search functionality
             if ($request->filled('search')) {
@@ -163,16 +190,34 @@ class DiscountController extends Controller
                 }
             }
 
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
+                'company_id' => $companyRule,
                 'offer_name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'discount_type' => 'required|in:percentage,fixed',
                 'discount_value' => 'required|numeric|min:0',
                 'applies_to' => 'required|in:all_services,specific_categories,specific_services',
                 'categories' => 'nullable|array',
-                'categories.*' => 'integer|exists:categories,id',
+                'categories.*' => [
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $companyId),
+                ],
                 'services' => 'nullable|array',
-                'services.*' => 'integer|exists:services,id',
+                'services.*' => [
+                    'integer',
+                    Rule::exists('services', 'id')->where('company_id', $companyId),
+                ],
                 'valid_from' => 'required|date',
                 'valid_to' => 'required|date|after_or_equal:valid_from',
                 'auto_apply' => 'nullable',
@@ -212,11 +257,12 @@ class DiscountController extends Controller
                 $validated['categories'] = null;
             }
 
+            $validated['company_id'] = $companyId;
             $discount = Discount::create($validated);
 
             return response()->json([
                 'message' => 'Discount/Offer created successfully',
-                'data' => $discount
+                'data' => $discount,
             ], 201);
         } catch (Exception $e) {
             return errorResponse($e);
@@ -250,7 +296,10 @@ class DiscountController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $this->forbidGuestCompanyStaff($request->user());
+
             $discount = Discount::findOrFail($id);
+            $companyId = (int) $discount->company_id;
 
             // Handle JSON string arrays for categories and services
             $requestData = $request->all();
@@ -270,20 +319,29 @@ class DiscountController extends Controller
             }
 
             $validated = $request->validate([
+                'company_id' => 'prohibited',
                 'offer_name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'discount_type' => 'required|in:percentage,fixed',
                 'discount_value' => 'required|numeric|min:0',
                 'applies_to' => 'required|in:all_services,specific_categories,specific_services',
                 'categories' => 'nullable|array',
-                'categories.*' => 'integer|exists:categories,id',
+                'categories.*' => [
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $companyId),
+                ],
                 'services' => 'nullable|array',
-                'services.*' => 'integer|exists:services,id',
+                'services.*' => [
+                    'integer',
+                    Rule::exists('services', 'id')->where('company_id', $companyId),
+                ],
                 'valid_from' => 'required|date',
                 'valid_to' => 'required|date|after_or_equal:valid_from',
                 'auto_apply' => 'nullable',
                 'status' => 'nullable|in:1,0',
             ]);
+
+            unset($validated['company_id']);
 
             // Convert auto_apply to boolean if provided
             if (isset($validated['auto_apply'])) {

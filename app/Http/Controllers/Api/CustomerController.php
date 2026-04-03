@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Customer;
 use App\Models\Bill;
-use App\Models\BillItem;
-use Illuminate\Http\Request;
+use App\Models\Customer;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Exception;
 
 class CustomerController extends Controller
@@ -30,8 +29,13 @@ class CustomerController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            
+
+            $filterCid = $this->optionalSuperAdminCompanyId($request);
+
             $query = Customer::query();
+            if ($filterCid !== null) {
+                $query->where('company_id', $filterCid);
+            }
 
             // Search functionality
             if ($request->filled('search')) {
@@ -50,16 +54,21 @@ class CustomerController extends Controller
             }
 
             // Calculate statistics (before pagination to get all customers)
-            $totalCustomers = Customer::count();
-            $newThisMonth = Customer::whereYear('created_at', now()->year)
+            $totalCustomers = (clone $query)->count();
+            $newThisMonth = (clone $query)->whereYear('created_at', now()->year)
                 ->whereMonth('created_at', now()->month)
                 ->count();
-            
-            // Total revenue from all bills
-            $totalRevenue = Bill::sum('total');
-            
+
+            $billStatsQuery = Bill::query();
+            if ($filterCid !== null) {
+                $billStatsQuery->where('company_id', $filterCid);
+            }
+
+            // Total revenue from bills in scope
+            $totalRevenue = (clone $billStatsQuery)->sum('total');
+
             // Average spend per visit (average of all bill totals)
-            $totalBills = Bill::count();
+            $totalBills = (clone $billStatsQuery)->count();
             $avgSpendPerVisit = $totalBills > 0 ? round($totalRevenue / $totalBills, 2) : 0;
 
             $customers = $query->orderBy('created_at', 'desc')
@@ -96,10 +105,27 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
+                'company_id' => $companyRule,
                 'name' => 'required|string|max:255',
                 'phone' => 'required|string|max:20',
-                'email' => 'nullable|email|max:255|unique:customers,email',
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                    Rule::unique('customers', 'email')->where(fn ($q) => $q->where('company_id', $companyId)),
+                ],
                 'address' => 'nullable|string',
                 'date_of_birth' => 'nullable|date',
                 'tags' => 'nullable|array',
@@ -107,7 +133,16 @@ class CustomerController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
-            $customer = Customer::create($validated);
+            $customer = Customer::create([
+                'company_id' => $companyId,
+                'name' => $validated['name'],
+                'phone' => $validated['phone'],
+                'email' => $validated['email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'date_of_birth' => $validated['date_of_birth'] ?? null,
+                'tags' => $validated['tags'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ]);
 
             return response()->json([
                 'message' => 'Customer created successfully',
@@ -128,7 +163,7 @@ class CustomerController extends Controller
             $customer = Customer::findOrFail($id);
             
             // Get all bills for statistics
-            $bills = Bill::where('customer_id', $id)->get();
+            $bills = Bill::query()->where('customer_id', $id)->get();
             
             // Calculate statistics
             $totalVisits = $bills->count();
@@ -167,7 +202,7 @@ class CustomerController extends Controller
             $customer = Customer::findOrFail($id);
             $per_page = $request->per_page ?? 10;
             
-            $query = Bill::where('customer_id', $id)
+            $query = Bill::query()->where('customer_id', $id)
                 ->with(['items.service', 'items.category', 'user'])
                 ->orderBy('created_at', 'desc');
             
@@ -207,7 +242,7 @@ class CustomerController extends Controller
             $customer = Customer::findOrFail($id);
             
             // Get all bills
-            $bills = Bill::where('customer_id', $id)
+            $bills = Bill::query()->where('customer_id', $id)
                 ->with(['items.service', 'items.category'])
                 ->orderBy('created_at', 'asc')
                 ->get();
@@ -336,12 +371,22 @@ class CustomerController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $this->forbidGuestCompanyStaff($request->user());
+
             $customer = Customer::findOrFail($id);
 
             $validated = $request->validate([
+                'company_id' => 'prohibited',
                 'name' => 'required|string|max:255',
                 'phone' => 'required|string|max:20',
-                'email' => 'nullable|email|max:255|unique:customers,email,' . $customer->id,
+                'email' => [
+                    'nullable',
+                    'email',
+                    'max:255',
+                    Rule::unique('customers', 'email')
+                        ->ignore($customer->id)
+                        ->where(fn ($q) => $q->where('company_id', $customer->company_id)),
+                ],
                 'address' => 'nullable|string',
                 'date_of_birth' => 'nullable|date',
                 'tags' => 'nullable|array',
@@ -349,6 +394,7 @@ class CustomerController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
+            unset($validated['company_id']);
             $customer->update($validated);
 
             return response()->json([

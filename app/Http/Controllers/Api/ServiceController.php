@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Service;
 use App\Models\Discount;
-use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use App\Models\Service;
 use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ServiceController extends Controller
 {
@@ -28,8 +29,11 @@ class ServiceController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            
+
             $query = Service::with('category');
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            }
 
             // Search functionality
             if ($request->filled('search')) {
@@ -63,21 +67,44 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
+                'company_id' => $companyRule,
                 'service_name' => 'required|string|max:255',
-                'category_id' => 'required|integer|exists:categories,id',
+                'category_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $companyId),
+                ],
                 'status' => 'nullable|in:1,0',
                 'price' => 'required|numeric|min:0',
                 'duration' => 'required|integer|min:1',
                 'description' => 'nullable|string',
             ]);
 
-            // Set default status to active if not provided
-            if (!isset($validated['status'])) {
-                $validated['status'] = 'active';
+            if (! isset($validated['status'])) {
+                $validated['status'] = '1';
             }
 
-            $service = Service::create($validated);
+            $service = Service::create([
+                'company_id' => $companyId,
+                'service_name' => $validated['service_name'],
+                'category_id' => $validated['category_id'],
+                'status' => $validated['status'],
+                'price' => $validated['price'],
+                'duration' => $validated['duration'],
+                'description' => $validated['description'] ?? null,
+            ]);
 
             return response()->json([
                 'message' => 'Service created successfully',
@@ -115,17 +142,25 @@ class ServiceController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $this->forbidGuestCompanyStaff($request->user());
+
             $service = Service::findOrFail($id);
 
             $validated = $request->validate([
+                'company_id' => 'prohibited',
                 'service_name' => 'required|string|max:255',
-                'category_id' => 'required|integer|exists:categories,id',
+                'category_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $service->company_id),
+                ],
                 'status' => 'nullable|in:1,0',
                 'price' => 'required|numeric|min:0',
                 'duration' => 'required|integer|min:1',
                 'description' => 'nullable|string',
             ]);
 
+            unset($validated['company_id']);
             $service->update($validated);
 
             return response()->json([

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Bill extends Model
 {
+    use BelongsToCompany;
     use HasFactory;
 
     /**
@@ -15,6 +17,7 @@ class Bill extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'company_id',
         'bill_number',
         'customer_id',
         'user_id',
@@ -34,6 +37,7 @@ class Bill extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'company_id' => 'integer',
         'subtotal' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'total' => 'decimal:2',

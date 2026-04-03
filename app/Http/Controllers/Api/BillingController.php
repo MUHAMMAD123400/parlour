@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Bill;
 use App\Models\BillItem;
 use App\Models\Customer;
-use App\Models\Service;
 use App\Models\Discount;
-use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Facades\DB;
+use App\Models\Service;
 use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class BillingController extends Controller
 {
@@ -31,8 +32,11 @@ class BillingController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            
+
             $query = Bill::with(['customer', 'user', 'items.service', 'items.category']);
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            }
 
             // Search functionality
             if ($request->filled('search')) {
@@ -84,10 +88,28 @@ class BillingController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
-                'customer_id' => 'required|exists:customers,id',
+                'company_id' => $companyRule,
+                'customer_id' => [
+                    'required',
+                    Rule::exists('customers', 'id')->where('company_id', $companyId),
+                ],
                 'items' => 'required|array|min:1',
-                'items.*.service_id' => 'required|exists:services,id',
+                'items.*.service_id' => [
+                    'required',
+                    Rule::exists('services', 'id')->where('company_id', $companyId),
+                ],
                 'items.*.quantity' => 'required|integer|min:1',
                 'subtotal' => 'required|numeric|min:0',
                 'discount_amount' => 'nullable|numeric|min:0',
@@ -96,11 +118,16 @@ class BillingController extends Controller
                 'payment_method' => 'required|in:cash,card,online',
                 'paid_amount' => 'required|numeric|min:0',
                 'notes' => 'nullable|string',
+                'discount_id' => [
+                    'nullable',
+                    'integer',
+                    Rule::exists('discounts', 'id')->where('company_id', $companyId),
+                ],
             ]);
 
             // Get the logged-in user ID
             $userId = auth()->id();
-            if (!$userId) {
+            if (! $userId) {
                 return errorResponse('User must be authenticated to create a bill', 401);
             }
 
@@ -108,13 +135,14 @@ class BillingController extends Controller
 
             try {
                 // Generate unique bill number
-                $billNumber = $this->generateBillNumber();
+                $billNumber = $this->generateBillNumber($companyId);
 
                 // Calculate change amount
                 $changeAmount = max(0, $validated['paid_amount'] - $validated['total']);
 
                 // Create the bill
                 $bill = Bill::create([
+                    'company_id' => $companyId,
                     'bill_number' => $billNumber,
                     'customer_id' => $validated['customer_id'],
                     'user_id' => $userId, // Logged-in user who created the bill
@@ -149,7 +177,7 @@ class BillingController extends Controller
                 }
 
                 // Update discount usage count if discount was applied
-                if (isset($validated['discount_id']) && $validated['discount_id']) {
+                if (! empty($validated['discount_id'])) {
                     $discount = Discount::find($validated['discount_id']);
                     if ($discount) {
                         $discount->increment('usage_count');
@@ -218,13 +246,15 @@ class BillingController extends Controller
     /**
      * Generate unique bill number
      */
-    private function generateBillNumber()
+    private function generateBillNumber(int $companyId): string
     {
         $prefix = 'BILL';
         $date = now()->format('Ymd');
-        
-        // Get the last bill number for today
-        $lastBill = Bill::whereDate('created_at', today())
+
+        // Get the last bill number for today within this company
+        $lastBill = Bill::query()
+            ->where('company_id', $companyId)
+            ->whereDate('created_at', today())
             ->where('bill_number', 'like', $prefix . '-' . $date . '%')
             ->orderBy('bill_number', 'desc')
             ->first();

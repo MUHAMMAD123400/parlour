@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -27,8 +28,11 @@ class ProductController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            
+
             $query = Product::with('category');
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            }
 
             // Search functionality
             if ($request->filled('search')) {
@@ -101,10 +105,26 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
+                'company_id' => $companyRule,
                 'product_name' => 'required|string|max:255',
                 'brand' => 'nullable|string|max:255',
-                'category_id' => 'required|integer|exists:categories,id',
+                'category_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $companyId),
+                ],
                 'description' => 'nullable|string',
                 'quantity_in_stock' => 'required|integer|min:0',
                 'unit' => 'nullable|string|max:50',
@@ -114,7 +134,19 @@ class ProductController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
-            $product = Product::create($validated);
+            $product = Product::create([
+                'company_id' => $companyId,
+                'product_name' => $validated['product_name'],
+                'brand' => $validated['brand'] ?? null,
+                'category_id' => $validated['category_id'],
+                'description' => $validated['description'] ?? null,
+                'quantity_in_stock' => $validated['quantity_in_stock'],
+                'unit' => $validated['unit'] ?? null,
+                'purchase_price' => $validated['purchase_price'],
+                'selling_price' => $validated['selling_price'] ?? null,
+                'minimum_stock_alert' => $validated['minimum_stock_alert'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ]);
 
             return response()->json([
                 'message' => 'Product created successfully',
@@ -152,12 +184,19 @@ class ProductController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $this->forbidGuestCompanyStaff($request->user());
+
             $product = Product::findOrFail($id);
 
             $validated = $request->validate([
+                'company_id' => 'prohibited',
                 'product_name' => 'required|string|max:255',
                 'brand' => 'nullable|string|max:255',
-                'category_id' => 'required|integer|exists:categories,id',
+                'category_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('categories', 'id')->where('company_id', $product->company_id),
+                ],
                 'description' => 'nullable|string',
                 'quantity_in_stock' => 'required|integer|min:0',
                 'unit' => 'nullable|string|max:50',
@@ -167,6 +206,7 @@ class ProductController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
+            unset($validated['company_id']);
             $product->update($validated);
 
             return response()->json([

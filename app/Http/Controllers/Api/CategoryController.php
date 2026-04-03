@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Exception;
+use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
@@ -29,6 +30,10 @@ class CategoryController extends Controller
             $per_page = $request->per_page ?? 10;
 
             $query = Category::query();
+
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            }
 
             if ($request->filled('search')) {
                 $search = $request->search;
@@ -62,18 +67,37 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         try {
+            $user = $request->user();
+            $this->forbidGuestCompanyStaff($user);
+
+            $companyRule = $user->isSuperAdmin()
+                ? ['required', 'integer', 'exists:companies,id']
+                : ['prohibited'];
+
+            $companyId = $user->isSuperAdmin()
+                ? (int) $request->input('company_id')
+                : (int) $user->company_id;
+
             $validated = $request->validate([
-                'category_name' => 'required|string|max:255|unique:categories,category_name',
+                'company_id' => $companyRule,
+                'category_name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('categories', 'category_name')->where(fn ($q) => $q->where('company_id', $companyId)),
+                ],
                 'color' => 'required|string|max:20',
                 'status' => 'nullable|in:1,0',
                 'description' => 'nullable|string|max:300',
             ]);
 
-            if (!isset($validated['status'])) {
-                $validated['status'] = '1';
-            }
-
-            $category = Category::create($validated);
+            $category = Category::create([
+                'company_id' => $companyId,
+                'category_name' => $validated['category_name'],
+                'color' => $validated['color'],
+                'status' => $validated['status'] ?? '1',
+                'description' => $validated['description'] ?? null,
+            ]);
 
             return response()->json([
                 'message' => 'Category created successfully',
@@ -111,15 +135,26 @@ class CategoryController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $this->forbidGuestCompanyStaff($request->user());
+
             $category = Category::findOrFail($id);
 
             $validated = $request->validate([
-                'category_name' => 'required|string|max:255|unique:categories,category_name,' . $id,
+                'company_id' => 'prohibited',
+                'category_name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('categories', 'category_name')
+                        ->ignore($category->id)
+                        ->where(fn ($q) => $q->where('company_id', $category->company_id)),
+                ],
                 'color' => 'required|string|max:20',
                 'status' => 'required|in:1,0',
                 'description' => 'nullable|string|max:300',
             ]);
 
+            unset($validated['company_id']);
             $category->update($validated);
 
             return response()->json([
