@@ -318,8 +318,8 @@ class UserController extends Controller
     public function assignPermissions(Request $request, $id)
     {
         $validated = $request->validate([
-            'permission_names' => 'required|array',
-            'permission_names.*' => 'required|string|exists:permissions,name,guard_name,api',
+            'permissions' => 'required|array',
+            'permissions.*' => 'required|string|exists:permissions,name,guard_name,api',
         ]);
 
         try {
@@ -345,7 +345,7 @@ class UserController extends Controller
                 // full access
             } elseif ($auth->isCompanyAdmin() && (int) $auth->company_id === (int) $user->company_id) {
                 $allowed = CompanyAccessService::allowedPermissionNamesForCompany($auth->company_id);
-                foreach ($validated['permission_names'] as $name) {
+                foreach ($validated['permissions'] as $name) {
                     if (! in_array($name, $allowed, true)) {
                         return response()->json([
                             'message' => 'One or more permissions are not allowed for your company modules.',
@@ -360,7 +360,7 @@ class UserController extends Controller
                 ], 403);
             }
 
-            $permissions = Permission::whereIn('name', $validated['permission_names'])
+            $permissions = Permission::whereIn('name', $validated['permissions'])
                 ->where('guard_name', 'api')
                 ->get();
 
