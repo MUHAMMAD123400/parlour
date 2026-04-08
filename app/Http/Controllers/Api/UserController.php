@@ -334,7 +334,7 @@ class UserController extends Controller
 
             $user = User::findOrFail($id);
 
-            if ($user->hasRole('super_admin') && ! $auth->isSuperAdmin()) {
+            if (! $auth->hasRole(['super_admin', 'company_admin'])) {
                 return response()->json([
                     'message' => 'You do not have permission to perform this action.',
                     'error' => 'forbidden',
