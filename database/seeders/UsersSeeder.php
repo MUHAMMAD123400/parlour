@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -14,7 +13,7 @@ class UsersSeeder extends Seeder
      */
     public function run(): void
     {
-                // Array of users to create
+        // Array of users to create
         $users = [
             [
                 'name' => 'John Doe',
@@ -31,11 +30,26 @@ class UsersSeeder extends Seeder
                 'email' => 'admin@example.com',
                 'password' => Hash::make('admin123'),
             ],
+            [
+                'name' => 'Super Admin',
+                'email' => 'superadmin@example.com',
+                'password' => Hash::make('superadmin123'),
+            ],
         ];
 
         // Insert users into the database
         foreach ($users as $user) {
-            User::create($user);
+            $createdUser = User::updateOrCreate(
+                ['email' => $user['email']],
+                [
+                    'name' => $user['name'],
+                    'password' => $user['password'],
+                ]
+            );
+
+            if ($user['email'] === 'superadmin@example.com') {
+                $createdUser->syncRoles(['super_admin']);
+            }
         }
 
         $this->command->info('Users seeded successfully!');

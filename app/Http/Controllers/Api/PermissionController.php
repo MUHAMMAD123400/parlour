@@ -9,28 +9,28 @@ use Exception;
 
 class PermissionController extends Controller
 {
-     public function __construct()
+    public function __construct()
     {
-        // $this->middleware('permission:permission.index')->only(['index']);
-        // $this->middleware('permission:permission.show')->only(['show']);
-        // $this->middleware('permission:permission.create')->only(['create', 'store']);
-        // $this->middleware('permission:permission.edit')->only(['edit', 'update']);
-        // $this->middleware('permission:permission.delete')->only(['destroy']);
+        $this->middleware('permission:permission.index')->only(['index']);
+        $this->middleware('permission:permission.show')->only(['show']);
+        $this->middleware('permission:permission.create')->only(['create', 'store']);
+        $this->middleware('permission:permission.edit')->only(['edit', 'update']);
+        $this->middleware('permission:permission.delete')->only(['destroy']);
     }
-    
+
     public function index(Request $request)
     {
         try {
             $per_page = $request->per_page ?? 10;
 
             $permissions = Permission::where('guard_name', 'api')
-                ->orderBy('name','asc')
+                ->orderBy('name', 'asc')
                 ->when($request->filled('search'), function ($query) use ($request) {
-                    $query->where(function($q) use ($request) {
+                    $query->where(function ($q) use ($request) {
                         $q->where('name', 'like', '%' . $request->search . '%')
-                          ->orWhere('title', 'like', '%' . $request->search . '%')
-                          ->orWhere('description', 'like', '%' . $request->search . '%')
-                          ->orWhere('module', 'like', '%' . $request->search . '%');
+                            ->orWhere('title', 'like', '%' . $request->search . '%')
+                            ->orWhere('description', 'like', '%' . $request->search . '%')
+                            ->orWhere('module', 'like', '%' . $request->search . '%');
                     });
                 })
                 ->when($request->filled('type'), function ($query) use ($request) {
@@ -49,32 +49,31 @@ class PermissionController extends Controller
         }
     }
 
-    public function fetchAll(Request $request){
-        try{
+    public function fetchAll(Request $request)
+    {
+        try {
             $permissions = Permission::where('guard_name', 'api')
-                ->orderBy('name','asc')
-                ->select('id','name','title','type','module','group_type')
+                ->orderBy('name', 'asc')
+                ->select('id', 'name', 'title', 'type', 'module', 'group_type')
                 ->get();
 
             return response()->json($permissions);
-
         } catch (Exception $e) {
             return errorResponse($e);
         }
-
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|unique:permissions,name,NULL,id,guard_name,api|max:255',
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'type' => 'nullable|string|max:255',
-            'module' => 'nullable|string|max:255',
-            'group_type' => 'nullable|string|max:255',
-        ]);
         try {
+            $validated = $request->validate([
+                'name' => 'required|string|unique:permissions,name,NULL,id,guard_name,api|max:255',
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'type' => 'nullable|string|max:255',
+                'module' => 'nullable|string|max:255',
+                'group_type' => 'nullable|string|max:255',
+            ]);
 
             $permission = Permission::create([
                 'name' => $validated['name'],
@@ -98,7 +97,8 @@ class PermissionController extends Controller
 
     public function update(Request $request, $id)
     {
-        $permission = Permission::findOrFail($id);
+        try {
+            $permission = Permission::findOrFail($id);
 
             $validated = $request->validate([
                 'name' => 'required|string|unique:permissions,name,' . $permission->id . ',id,guard_name,api|max:255',
@@ -108,7 +108,7 @@ class PermissionController extends Controller
                 'module' => 'nullable|string|max:255',
                 'group_type' => 'nullable|string|max:255',
             ]);
-        try {
+            
             $permission->update([
                 'name' => $validated['name'],
                 'title' => $validated['title'],
