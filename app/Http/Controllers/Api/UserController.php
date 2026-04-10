@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\CompanyAccessService;
 use Exception;
@@ -10,10 +11,27 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    /**
+     * Resolve a role by name for a user's company (`super_admin` is global: company_id null).
+     */
+    protected function resolveRoleForUserCompany(?int $companyId, string $roleName): ?Role
+    {
+        $q = Role::query()->where('name', $roleName)->where('guard_name', 'api');
+
+        if ($roleName === 'super_admin') {
+            return $q->whereNull('company_id')->first();
+        }
+
+        if ($companyId) {
+            return $q->where('company_id', $companyId)->first();
+        }
+
+        return $q->whereNull('company_id')->first();
+    }
+
     public function __construct()
     {
         $this->middleware('permission:user.index')->only(['index']);
@@ -81,7 +99,7 @@ class UserController extends Controller
                 'name' => 'string|required|max:30',
                 'email' => 'string|required|unique:users',
                 'password' => 'string|required',
-                'role' => 'nullable|exists:roles,name,guard_name,api',
+                'role' => 'nullable|string|max:255',
                 'status' => 'required|in:1,0',
                 'company_id' => 'nullable|integer|exists:companies,id',
             ]);
@@ -106,13 +124,19 @@ class UserController extends Controller
             $user = User::create($data);
 
             if (! empty($roleName)) {
-                $role = Role::where('name', $roleName)
-                    ->where('guard_name', 'api')
-                    ->first();
+                $role = $this->resolveRoleForUserCompany(
+                    $data['company_id'] !== null ? (int) $data['company_id'] : null,
+                    $roleName
+                );
 
-                if ($role) {
-                    $user->syncRoles($role);
+                if (! $role) {
+                    return response()->json([
+                        'message' => 'The selected role does not exist for this company.',
+                        'error' => 'validation',
+                    ], 422);
                 }
+
+                $user->syncRoles($role);
             }
 
             return response()->json(['message' => 'User Created Successfully', 'user' => $user->load('roles', 'permissions')], 200);
@@ -166,7 +190,7 @@ class UserController extends Controller
                 'name' => 'string|required|max:30',
                 'email' => 'string|required|unique:users,email,' . $id,
                 'password' => 'nullable',
-                'role' => 'nullable|exists:roles,name,guard_name,api',
+                'role' => 'nullable|string|max:255',
                 'status' => 'required|in:1,0',
                 'photo' => 'nullable|string',
                 'company_id' => 'nullable|integer|exists:companies,id',
@@ -182,16 +206,26 @@ class UserController extends Controller
                 }
             }
 
-            if (! empty($data['role'])) {
-                $role = Role::where('name', $data['role'])
-                    ->where('guard_name', 'api')
-                    ->first();
+            $effectiveCompanyId = $auth->isSuperAdmin() && array_key_exists('company_id', $data)
+                ? ($data['company_id'] ?? $user->company_id)
+                : $user->company_id;
+            $effectiveCompanyId = $effectiveCompanyId !== null ? (int) $effectiveCompanyId : null;
 
-                if ($role) {
+            if (array_key_exists('role', $data)) {
+                if ($data['role'] !== null && $data['role'] !== '') {
+                    $role = $this->resolveRoleForUserCompany($effectiveCompanyId, $data['role']);
+
+                    if (! $role) {
+                        return response()->json([
+                            'message' => 'The selected role does not exist for this company.',
+                            'error' => 'validation',
+                        ], 422);
+                    }
+
                     $user->syncRoles($role);
+                } else {
+                    $user->syncRoles([]);
                 }
-            } else {
-                $user->syncRoles([]);
             }
 
             if (isset($data['password']) && $data['password']) {
@@ -254,9 +288,9 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'roles' => 'nullable|array',
-            'roles.*' => 'required|exists:roles,name,guard_name,api',
+            'roles.*' => 'required|string|max:255',
             'role_names' => 'nullable|array',
-            'role_names.*' => 'required|exists:roles,name,guard_name,api',
+            'role_names.*' => 'required|string|max:255',
         ]);
 
         try {
@@ -298,11 +332,21 @@ class UserController extends Controller
                 }
             }
 
-            $roles = Role::whereIn('name', $rolesToSync)
-                ->where('guard_name', 'api')
-                ->get();
+            $roles = collect($rolesToSync)->map(function (string $name) use ($user) {
+                return $this->resolveRoleForUserCompany(
+                    $user->company_id !== null ? (int) $user->company_id : null,
+                    $name
+                );
+            });
 
-            $user->syncRoles($roles);
+            if ($roles->contains(null) || $roles->count() !== count($rolesToSync)) {
+                return response()->json([
+                    'message' => 'One or more roles are invalid for this user\'s company.',
+                    'error' => 'validation',
+                ], 422);
+            }
+
+            $user->syncRoles($roles->all());
 
             return response()->json([
                 'message' => 'User roles synced successfully',

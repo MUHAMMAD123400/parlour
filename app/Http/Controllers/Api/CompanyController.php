@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\CompanyModule;
 use App\Models\Module;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\CompanyAccessService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
 
 class CompanyController extends Controller
 {
@@ -143,8 +143,30 @@ class CompanyController extends Controller
                     'company_id' => $company->id,
                 ]);
 
-                $role = Role::where('name', 'company_admin')->where('guard_name', 'api')->firstOrFail();
-                $adminUser->syncRoles([$role]);
+                $adminRole = Role::query()->firstOrCreate(
+                    [
+                        'name' => 'company_admin',
+                        'guard_name' => 'api',
+                        'company_id' => $company->id,
+                    ],
+                    [
+                        'description' => 'Company administrator; direct permissions from assigned company modules',
+                    ]
+                );
+
+                if ($adminRole->wasRecentlyCreated) {
+                    $source = Role::query()
+                        ->where('name', 'company_admin')
+                        ->where('guard_name', 'api')
+                        ->where('company_id', '!=', $company->id)
+                        ->whereNotNull('company_id')
+                        ->first();
+                    if ($source) {
+                        $adminRole->syncPermissions($source->permissions);
+                    }
+                }
+
+                $adminUser->syncRoles([$adminRole]);
 
                 CompanyAccessService::grantCompanyAdminAllModulePermissions($adminUser, $company);
 

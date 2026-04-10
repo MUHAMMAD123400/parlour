@@ -84,6 +84,11 @@ class Company extends Model
         return $this->hasMany(Bill::class);
     }
 
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Role::class);
+    }
+
     /**
      * Active permission module keys (matches permissions.module) for this company.
      */

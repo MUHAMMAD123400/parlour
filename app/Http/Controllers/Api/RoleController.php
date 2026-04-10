@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\Role;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
@@ -38,7 +39,15 @@ class RoleController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            $roles = Role::where('guard_name', 'api')->with('permissions')->when($request->filled('search'), function ($query) use ($request) {
+            $query = Role::query()->where('guard_name', 'api')->with('permissions');
+
+            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
+                $query->where('company_id', $cid);
+            } elseif (! $request->user()->isSuperAdmin()) {
+                $query->where('company_id', $request->user()->company_id);
+            }
+
+            $roles = $query->when($request->filled('search'), function ($query) use ($request) {
                 $query->where('name', 'like', '%' . $request->search . '%');
             })
                 ->paginate($per_page);
@@ -61,8 +70,6 @@ class RoleController extends Controller
         }
     }
 
-
-
     public function store(Request $request)
     {
         if (! $request->user()->isSuperAdmin()) {
@@ -73,27 +80,40 @@ class RoleController extends Controller
         }
 
         try {
-
             $validated = $request->validate([
-                'name' => 'required|string|max:255|unique:roles,name,NULL,id,guard_name,api',
+                'company_id' => 'nullable|integer|exists:companies,id',
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('roles', 'name')->where(function ($q) use ($request) {
+                        $q->where('guard_name', 'api');
+                        if ($request->filled('company_id')) {
+                            $q->where('company_id', $request->company_id);
+                        } else {
+                            $q->whereNull('company_id');
+                        }
+                    }),
+                ],
                 'description' => 'nullable|string',
                 'permission_names' => 'nullable|array',
                 'permission_names.*' => 'exists:permissions,name',
             ]);
 
-            $role = Role::create([
+            $role = Role::query()->create([
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
                 'guard_name' => 'api',
+                'company_id' => $validated['company_id'] ?? null,
             ]);
 
-            if (!empty($validated['permission_names'])) {
+            if (! empty($validated['permission_names'])) {
                 $role->syncPermissions($validated['permission_names']);
             }
 
             return response()->json([
                 'message' => 'Role successfully created',
-                'data' => $role->load('permissions')
+                'data' => $role->load('permissions'),
             ], 201);
         } catch (Exception $e) {
             return errorResponse($e);
@@ -113,7 +133,14 @@ class RoleController extends Controller
             $role = Role::findOrFail($id);
 
             $validated = $request->validate([
-                'name' => 'required|string|max:255|unique:roles,name,' . $role->id . ',id,guard_name,' . $role->guard_name,
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('roles', 'name')
+                        ->ignore($role->id)
+                        ->where(fn ($q) => $q->where('guard_name', 'api')->where('company_id', $role->company_id)),
+                ],
                 'description' => 'nullable|string',
                 'permission_names' => 'nullable|array',
                 'permission_names.*' => 'exists:permissions,name',
@@ -124,16 +151,16 @@ class RoleController extends Controller
                 'description' => $validated['description'] ?? null,
             ]);
 
-            if (!empty($validated['permission_names'])) {
+            if (! empty($validated['permission_names'])) {
                 $role->syncPermissions($validated['permission_names']);
             }
 
             return response()->json([
                 'message' => 'Role successfully updated',
-                'data' => $role->load('permissions')
+                'data' => $role->load('permissions'),
             ]);
         } catch (ModelNotFoundException $e) {
-            return errorResponse("Role not found", 404);
+            return errorResponse('Role not found', 404);
         } catch (Exception $e) {
             return errorResponse($e);
         }
@@ -152,44 +179,30 @@ class RoleController extends Controller
         }
 
         try {
-            // Find the role
             $role = Role::findOrFail($id);
-            $guardName = $role->guard_name ?? config('auth.defaults.guard');
-                
-            // Get the correct model class for this guard
-            $usersModel = getModelForGuard($guardName);
 
-            if (!$usersModel) {
+            if ($role->users()->count() > 0) {
                 return response()->json([
-                    'error' => "No model found for guard `{$guardName}`"
-                ], 500);
-            }
-
-            // Check if any users are assigned to this role
-            // Use model-based approach (safe for API)
-            if ($usersModel::role($role->name, $guardName)->count() > 0) {
-                return response()->json([
-                    'error' => 'Cannot delete role, it is assigned to users'
+                    'error' => 'Cannot delete role, it is assigned to users',
                 ], 400);
             }
 
-            // Detach all permissions before deleting
             $role->syncPermissions([]);
 
-            // Safe delete
             $role->delete();
 
             return response()->json([
-                'message' => 'Role deleted successfully'
+                'message' => 'Role deleted successfully',
             ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'error' => 'Role not found'
+                'error' => 'Role not found',
             ], 404);
         } catch (\Exception $e) {
             Log::error($e);
+
             return response()->json([
-                'error' => 'Something went wrong'
+                'error' => 'Something went wrong',
             ], 500);
         }
     }
@@ -200,6 +213,9 @@ class RoleController extends Controller
             $role = Role::with('permissions')->findOrFail($id);
 
             if (! $request->user()->isSuperAdmin()) {
+                if ((int) $role->company_id !== (int) $request->user()->company_id) {
+                    return errorResponse('Role not found', 404);
+                }
                 $keys = $this->companyPermissionModuleKeys($request);
                 $role->setRelation(
                     'permissions',
@@ -209,7 +225,7 @@ class RoleController extends Controller
 
             return response()->json($role);
         } catch (ModelNotFoundException $e) {
-            return errorResponse("Role not found", 404);
+            return errorResponse('Role not found', 404);
         } catch (Exception $e) {
             return errorResponse($e);
         }
@@ -225,27 +241,24 @@ class RoleController extends Controller
             $role = Role::findOrFail($id);
 
             $validated = $request->validate([
-                'permission_names' => 'required|array',
-                'permission_names.*' => 'required|exists:permissions,name,guard_name,api',
+                'permissions' => 'required|array',
+                'permissions.*' => 'required|exists:permissions,name,guard_name,api',
             ]);
 
-            // Get Permission models with 'api' guard explicitly
-            $permissions = Permission::whereIn('name', $validated['permission_names'])
+            $permissions = Permission::whereIn('name', $validated['permissions'])
                 ->where('guard_name', 'api')
                 ->get();
 
-            // Single source of truth: always replace existing permissions.
             $role->syncPermissions($permissions);
 
             return response()->json([
                 'message' => 'Role permissions synced successfully',
-                'data' => $role->load('permissions')
+                'data' => $role->load('permissions'),
             ], 200);
         } catch (ModelNotFoundException $e) {
-            return errorResponse("Role not found", 404);
+            return errorResponse('Role not found', 404);
         } catch (Exception $e) {
             return errorResponse($e);
         }
     }
-
 }
