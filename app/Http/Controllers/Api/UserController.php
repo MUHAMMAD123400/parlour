@@ -45,7 +45,7 @@ class UserController extends Controller
     {
         try {
             $auth = $request->user();
-            $query = User::with('roles', 'permissions');
+            $query = User::with('roles');
 
             if ($auth->isSuperAdmin()) {
                 if ($request->filled('company_id')) {
@@ -86,6 +86,7 @@ class UserController extends Controller
     public function store(Request $request)
     {
         try {
+            // dd($request->all());
             $auth = $request->user();
 
             if (! $auth->isSuperAdmin() && ! $auth->company_id) {
@@ -94,7 +95,7 @@ class UserController extends Controller
                     'error' => 'forbidden',
                 ], 403);
             }
-
+// dd('im here');
             $data = $request->validate([
                 'name' => 'string|required|max:30',
                 'email' => 'string|required|unique:users',

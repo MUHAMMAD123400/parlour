@@ -70,33 +70,47 @@ class RoleController extends Controller
 
     public function store(Request $request)
     {
-        if (! $request->user()->isSuperAdmin()) {
-            return response()->json([
-                'message' => 'You do not have permission to perform this action.',
-                'error' => 'forbidden',
-            ], 403);
-        }
-
         try {
-            $validated = $request->validate([
-                'company_id' => 'nullable|integer|exists:companies,id',
-                'name' => [
-                    'required',
-                    'string',
-                    'max:255',
-                    Rule::unique('roles', 'name')->where(function ($q) use ($request) {
-                        $q->where('guard_name', 'api');
-                        if ($request->filled('company_id')) {
-                            $q->where('company_id', $request->company_id);
-                        } else {
-                            $q->whereNull('company_id');
-                        }
-                    }),
-                ],
-                'description' => 'nullable|string',
-                'permission_names' => 'nullable|array',
-                'permission_names.*' => 'exists:permissions,name',
-            ]);
+            $auth = $request->user();
+
+            if ($auth->isSuperAdmin()) {
+                $validated = $request->validate([
+                    'company_id' => 'nullable|integer|exists:companies,id',
+                    'name' => [
+                        'required',
+                        'string',
+                        'max:255',
+                        Rule::unique('roles', 'name')->where(function ($q) use ($request) {
+                            $q->where('guard_name', 'api');
+                            if ($request->filled('company_id')) {
+                                $q->where('company_id', $request->company_id);
+                            } else {
+                                $q->whereNull('company_id');
+                            }
+                        }),
+                    ],
+                    'description' => 'nullable|string',
+                    'permission_names' => 'nullable|array',
+                    'permission_names.*' => 'exists:permissions,name',
+                ]);
+            } else {
+                $companyId = $this->resolveAuthenticatedCompanyId($auth);
+
+                $validated = $request->validate([
+                    'company_id' => 'prohibited',
+                    'name' => [
+                        'required',
+                        'string',
+                        'max:255',
+                        Rule::unique('roles', 'name')->where(fn ($q) => $q->where('guard_name', 'api')->where('company_id', $companyId)),
+                    ],
+                    'description' => 'nullable|string',
+                    'permission_names' => 'nullable|array',
+                    'permission_names.*' => 'exists:permissions,name',
+                ]);
+
+                $validated['company_id'] = $companyId;
+            }
 
             $role = Role::query()->create([
                 'name' => $validated['name'],
@@ -120,15 +134,16 @@ class RoleController extends Controller
 
     public function update(Request $request, $id)
     {
-        if (! $request->user()->isSuperAdmin()) {
-            return response()->json([
-                'message' => 'You do not have permission to perform this action.',
-                'error' => 'forbidden',
-            ], 403);
-        }
-
         try {
+            $auth = $request->user();
             $role = Role::findOrFail($id);
+
+            if (! $auth->isSuperAdmin() && (int) $role->company_id !== (int) $this->resolveAuthenticatedCompanyId($auth)) {
+                return response()->json([
+                    'message' => 'You do not have permission to perform this action.',
+                    'error' => 'forbidden',
+                ], 403);
+            }
 
             $validated = $request->validate([
                 'name' => [

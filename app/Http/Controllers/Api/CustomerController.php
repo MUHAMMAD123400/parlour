@@ -46,8 +46,14 @@ class CustomerController extends Controller
 
             // Filter by tags
             if ($request->filled('tags')) {
-                $tags = is_array($request->tags) ? $request->tags : [$request->tags];
-                $query->whereJsonContains('tags', $tags);
+                $tags = $this->normalizeTags($request->input('tags'));
+                if ($tags !== []) {
+                    $query->where(function ($q) use ($tags) {
+                        foreach ($tags as $tag) {
+                            $q->orWhereJsonContains('tags', $tag);
+                        }
+                    });
+                }
             }
 
             // Calculate statistics (before pagination to get all customers)
@@ -101,6 +107,9 @@ class CustomerController extends Controller
     {
         try {
             $companyId = $this->resolveAuthenticatedCompanyId($request->user());
+            $request->merge([
+                'tags' => $this->normalizeTagsForRequest($request->input('tags')),
+            ]);
 
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -357,6 +366,9 @@ class CustomerController extends Controller
     {
         try {
             $customer = Customer::findOrFail($id);
+            $request->merge([
+                'tags' => $this->normalizeTagsForRequest($request->input('tags')),
+            ]);
 
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -408,5 +420,51 @@ class CustomerController extends Controller
         } catch (Exception $e) {
             return errorResponse($e);
         }
+    }
+
+    /**
+     * Normalize tags for query filtering.
+     *
+     * @return array<int, string>
+     */
+    private function normalizeTags(mixed $rawTags): array
+    {
+        if ($rawTags === null || $rawTags === '') {
+            return [];
+        }
+
+        if (is_array($rawTags)) {
+            $values = $rawTags;
+        } elseif (is_string($rawTags)) {
+            $decoded = json_decode($rawTags, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $values = $decoded;
+            } else {
+                $values = array_map('trim', explode(',', $rawTags));
+            }
+        } else {
+            $values = [(string) $rawTags];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            fn ($v) => is_scalar($v) ? trim((string) $v) : '',
+            $values
+        ))));
+    }
+
+    /**
+     * Normalize tags payload before validation.
+     *
+     * @return array<int, string>|null
+     */
+    private function normalizeTagsForRequest(mixed $rawTags): ?array
+    {
+        if ($rawTags === null || $rawTags === '') {
+            return null;
+        }
+
+        $tags = $this->normalizeTags($rawTags);
+
+        return $tags === [] ? null : $tags;
     }
 }
