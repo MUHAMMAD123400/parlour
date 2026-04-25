@@ -32,11 +32,10 @@ class BillingController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
-            $query = Bill::with(['customer', 'user', 'items.service', 'items.category']);
-            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
-                $query->where('company_id', $cid);
-            }
+            $query = Bill::with(['customer', 'user', 'items.service', 'items.category'])
+                ->where('company_id', $companyId);
 
             // Search functionality
             if ($request->filled('search')) {
@@ -89,18 +88,9 @@ class BillingController extends Controller
     {
         try {
             $user = $request->user();
-            $this->forbidGuestCompanyStaff($user);
-
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
+            $companyId = $this->resolveAuthenticatedCompanyId($user);
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'customer_id' => [
                     'required',
                     Rule::exists('customers', 'id')->where('company_id', $companyId),
@@ -126,11 +116,6 @@ class BillingController extends Controller
             ]);
 
             // Get the logged-in user ID
-            $userId = auth()->id();
-            if (! $userId) {
-                return errorResponse('User must be authenticated to create a bill', 401);
-            }
-
             DB::beginTransaction();
 
             try {
@@ -145,7 +130,7 @@ class BillingController extends Controller
                     'company_id' => $companyId,
                     'bill_number' => $billNumber,
                     'customer_id' => $validated['customer_id'],
-                    'user_id' => $userId, // Logged-in user who created the bill
+                    'user_id' => $user->id,
                     'subtotal' => $validated['subtotal'],
                     'discount_amount' => $validated['discount_amount'] ?? 0,
                     'discount_type' => $validated['discount_type'] ?? 'none',

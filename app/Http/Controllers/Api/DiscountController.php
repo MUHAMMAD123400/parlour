@@ -28,16 +28,7 @@ class DiscountController extends Controller
     public function getSettings(Request $request)
     {
         try {
-            $user = $request->user();
-            if ($user->isSuperAdmin()) {
-                $request->validate([
-                    'company_id' => 'required|integer|exists:companies,id',
-                ]);
-                $companyId = (int) $request->input('company_id');
-            } else {
-                $this->forbidGuestCompanyStaff($user);
-                $companyId = (int) $user->company_id;
-            }
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $settings = DiscountSetting::firstOrCreate(
                 ['company_id' => $companyId],
@@ -63,21 +54,9 @@ class DiscountController extends Controller
     public function updateSettings(Request $request)
     {
         try {
-            $user = $request->user();
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
-
-            if (! $user->isSuperAdmin()) {
-                $this->forbidGuestCompanyStaff($user);
-            }
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'staff_discount_limit' => 'required|integer|min:0|max:50',
                 'require_discount_reason' => 'required',
             ]);
@@ -107,11 +86,9 @@ class DiscountController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
-            $query = Discount::query();
-            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
-                $query->where('company_id', $cid);
-            }
+            $query = Discount::query()->where('company_id', $companyId);
 
             // Search functionality
             if ($request->filled('search')) {
@@ -190,19 +167,9 @@ class DiscountController extends Controller
                 }
             }
 
-            $user = $request->user();
-            $this->forbidGuestCompanyStaff($user);
-
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'offer_name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'discount_type' => 'required|in:percentage,fixed',
@@ -296,8 +263,6 @@ class DiscountController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $this->forbidGuestCompanyStaff($request->user());
-
             $discount = Discount::findOrFail($id);
             $companyId = (int) $discount->company_id;
 
@@ -319,7 +284,6 @@ class DiscountController extends Controller
             }
 
             $validated = $request->validate([
-                'company_id' => 'prohibited',
                 'offer_name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'discount_type' => 'required|in:percentage,fixed',
@@ -340,8 +304,6 @@ class DiscountController extends Controller
                 'auto_apply' => 'nullable',
                 'status' => 'nullable|in:1,0',
             ]);
-
-            unset($validated['company_id']);
 
             // Convert auto_apply to boolean if provided
             if (isset($validated['auto_apply'])) {

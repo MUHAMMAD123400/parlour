@@ -28,12 +28,9 @@ class CategoryController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
-            $query = Category::query();
-
-            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
-                $query->where('company_id', $cid);
-            }
+            $query = Category::query()->where('company_id', $companyId);
 
             if ($request->filled('search')) {
                 $search = $request->search;
@@ -67,19 +64,9 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = $request->user();
-            $this->forbidGuestCompanyStaff($user);
-
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'category_name' => [
                     'required',
                     'string',
@@ -135,12 +122,9 @@ class CategoryController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $this->forbidGuestCompanyStaff($request->user());
-
             $category = Category::findOrFail($id);
 
             $validated = $request->validate([
-                'company_id' => 'prohibited',
                 'category_name' => [
                     'required',
                     'string',
@@ -154,7 +138,6 @@ class CategoryController extends Controller
                 'description' => 'nullable|string|max:300',
             ]);
 
-            unset($validated['company_id']);
             $category->update($validated);
 
             return response()->json([

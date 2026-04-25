@@ -29,13 +29,10 @@ class CustomerController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-
-            $filterCid = $this->optionalSuperAdminCompanyId($request);
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $query = Customer::query();
-            if ($filterCid !== null) {
-                $query->where('company_id', $filterCid);
-            }
+            $query->where('company_id', $companyId);
 
             // Search functionality
             if ($request->filled('search')) {
@@ -60,9 +57,7 @@ class CustomerController extends Controller
                 ->count();
 
             $billStatsQuery = Bill::query();
-            if ($filterCid !== null) {
-                $billStatsQuery->where('company_id', $filterCid);
-            }
+            $billStatsQuery->where('company_id', $companyId);
 
             // Total revenue from bills in scope
             $totalRevenue = (clone $billStatsQuery)->sum('total');
@@ -105,19 +100,9 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = $request->user();
-            $this->forbidGuestCompanyStaff($user);
-
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'name' => 'required|string|max:255',
                 'phone' => 'required|string|max:20',
                 'email' => [
@@ -371,12 +356,9 @@ class CustomerController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $this->forbidGuestCompanyStaff($request->user());
-
             $customer = Customer::findOrFail($id);
 
             $validated = $request->validate([
-                'company_id' => 'prohibited',
                 'name' => 'required|string|max:255',
                 'phone' => 'required|string|max:20',
                 'email' => [
@@ -394,7 +376,6 @@ class CustomerController extends Controller
                 'notes' => 'nullable|string',
             ]);
 
-            unset($validated['company_id']);
             $customer->update($validated);
 
             return response()->json([

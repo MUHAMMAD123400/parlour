@@ -41,10 +41,8 @@ class RoleController extends Controller
             $per_page = $request->per_page ?? 10;
             $query = Role::query()->where('guard_name', 'api')->with('permissions');
 
-            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
-                $query->where('company_id', $cid);
-            } elseif (! $request->user()->isSuperAdmin()) {
-                $query->where('company_id', $request->user()->company_id);
+            if (! $request->user()->isSuperAdmin()) {
+                $query->where('company_id', $this->resolveAuthenticatedCompanyId($request->user()));
             }
 
             $roles = $query->when($request->filled('search'), function ($query) use ($request) {

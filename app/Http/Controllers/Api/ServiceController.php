@@ -29,11 +29,9 @@ class ServiceController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
-            $query = Service::with('category');
-            if ($cid = $this->optionalSuperAdminCompanyId($request)) {
-                $query->where('company_id', $cid);
-            }
+            $query = Service::with('category')->where('company_id', $companyId);
 
             // Search functionality
             if ($request->filled('search')) {
@@ -67,19 +65,9 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         try {
-            $user = $request->user();
-            $this->forbidGuestCompanyStaff($user);
-
-            $companyRule = $user->isSuperAdmin()
-                ? ['required', 'integer', 'exists:companies,id']
-                : ['prohibited'];
-
-            $companyId = $user->isSuperAdmin()
-                ? (int) $request->input('company_id')
-                : (int) $user->company_id;
+            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
 
             $validated = $request->validate([
-                'company_id' => $companyRule,
                 'service_name' => 'required|string|max:255',
                 'category_id' => [
                     'required',
@@ -142,12 +130,9 @@ class ServiceController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $this->forbidGuestCompanyStaff($request->user());
-
             $service = Service::findOrFail($id);
 
             $validated = $request->validate([
-                'company_id' => 'prohibited',
                 'service_name' => 'required|string|max:255',
                 'category_id' => [
                     'required',
@@ -160,7 +145,6 @@ class ServiceController extends Controller
                 'description' => 'nullable|string',
             ]);
 
-            unset($validated['company_id']);
             $service->update($validated);
 
             return response()->json([

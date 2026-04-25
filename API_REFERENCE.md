@@ -30,6 +30,10 @@ Tokens are issued on login and expire after **1 hour** (see `LoginController`).
 
 **Company routes** (`/companies/*`) are **not** wrapped in `company.module`; access is enforced inside the controller (`super_admin` vs `company_admin` / own company).
 
+**Tenant data from login (no `company_id` in request):** For **categories**, **customers**, **products**, **services**, **discounts** (including **GET/POST `/discounts/settings`** and discount CRUD), and **bills**, the API **does not** take `company_id` from the JSON body or query string to choose a company. The tenant is always the **authenticated user’s** `company_id` (the same field returned on **POST `/login`** in `user.company_id`). Company staff should **omit** `company_id` in these requests; new rows are created for that company and list endpoints are scoped to it. Users without a `company_id` (e.g. some **`super_admin`** accounts) get **403** on these routes because there is no company on the session user.
+
+**Roles (Spatie `roles` table):** each row may have **`company_id`**. **`super_admin`** uses **`company_id` null** (global). **`company_admin`** and other tenant roles are stored **per company** (same `name` + `guard_name` is allowed when `company_id` differs). Listing and user role assignment resolve roles using the target user’s **`company_id`**.
+
 ---
 
 ## Standard list response (pagination)
@@ -75,7 +79,7 @@ Optional `totals` may contain extra aggregates (e.g. customers index).
 }
 ```
 
-**Success (200):** `user` (id, name, email, `company_id`, `company` with `modules` if applicable, `roles`, `permissions`), `token`, `expires_at`.
+**Success (200):** `user` (id, name, email, `company_id`, `company` with `modules` if applicable, `roles`, `permissions`), `token`, `expires_at`. For company staff, **`user.company_id`** is the tenant used automatically by the POS module APIs (you do not send `company_id` on those requests).
 
 **Errors:** `401` invalid credentials, `403` inactive user (`status` ≠ `1`).
 
@@ -245,9 +249,9 @@ Shared validated fields:
 | `per_page` | Page size |
 | `search` | name, email |
 | `status` | `1` or `0` |
-| `company_id` | **super_admin only** — filter by company |
+| `company_id` | **super_admin only** — optional filter by company when listing users |
 
-Non–super-admin users must have `company_id`; listing is scoped to that company.
+**Company staff:** listing is limited to users in the **same company** as the logged-in user (`user.company_id` from login); do not send `company_id`. **`super_admin`** may omit `company_id` to list across companies (subject to controller rules) or pass it to narrow results.
 
 ---
 
@@ -259,8 +263,7 @@ Non–super-admin users must have `company_id`; listing is scoped to that compan
   "email": "staff@company.test",
   "password": "password123",
   "role": "cashier",
-  "status": "1",
-  "company_id": 1
+  "status": "1"
 }
 ```
 
@@ -271,7 +274,7 @@ Non–super-admin users must have `company_id`; listing is scoped to that compan
 | `password` | required |
 | `role` | optional, must exist `roles.name` with `guard_name=api` |
 | `status` | required, `1` or `0` |
-| `company_id` | optional; **super_admin** can set; company users get their own `company_id` automatically |
+| `company_id` | optional; **super_admin only** — assign the new user to a company. **Company staff:** omit; the new user’s company is taken from **your** logged-in `company_id` automatically |
 
 Non–super-admin cannot assign roles `super_admin` or `company_admin`.
 
@@ -286,8 +289,7 @@ Non–super-admin cannot assign roles `super_admin` or `company_admin`.
   "password": null,
   "role": "cashier",
   "status": "1",
-  "photo": "optional-url-or-path",
-  "company_id": 1
+  "photo": "optional-url-or-path"
 }
 ```
 
@@ -299,7 +301,7 @@ Non–super-admin cannot assign roles `super_admin` or `company_admin`.
 | `role` | optional; empty clears roles |
 | `status` | required, `1` or `0` |
 | `photo` | optional string |
-| `company_id` | only **super_admin** may change |
+| `company_id` | **super_admin only** — may change the user’s company. **Company staff:** omit; company is unchanged from the logged-in context rules in the controller |
 
 ---
 
@@ -335,7 +337,7 @@ Replaces **direct** permissions on the user (Spatie); role-based permissions sti
 
 ```json
 {
-  "permission_names": [
+  "permissions": [
     "customer.index",
     "customer.show",
     "billing.create"
@@ -345,7 +347,7 @@ Replaces **direct** permissions on the user (Spatie); role-based permissions sti
 
 | Field | Rules |
 |-------|--------|
-| `permission_names` | required array; each exists `permissions.name` with `guard_name=api` |
+| `permissions` | required array; each exists `permissions.name` with `guard_name=api` |
 
 **Who:** `super_admin` (any valid permission) or `company_admin` (same company; each permission must belong to one of the company’s licensed modules).
 
@@ -359,14 +361,16 @@ Replaces **direct** permissions on the user (Spatie); role-based permissions sti
 
 | Method | Path | Notes |
 |--------|------|--------|
-| GET | `/roles` | List (paginated); non–super-admin sees permissions filtered to company module keys |
+| GET | `/roles` | List (paginated); **company staff** see roles for their company only; **`super_admin`** sees all API-guard roles; non–super-admin sees permissions filtered to company module keys |
 | POST | `/roles/store` | **`super_admin` only** |
-| GET | `/roles/{id}/show` | Non–super-admin: permissions filtered to company modules |
+| GET | `/roles/{id}/show` | Non–super-admin: same company only; permissions filtered to company modules |
 | POST | `/roles/{id}/update` | **`super_admin` only** |
 | DELETE | `/roles/{id}/delete` | **`super_admin` only** |
 | POST | `/roles/{id}/assign-permissions` | **`super_admin` only** (middleware `role:super_admin`) |
 
-**Query (GET `/roles`):** `per_page`, `search` (role name).
+**Query (GET `/roles`):** `per_page`, `search` (role name). **`super_admin`** sees all API-guard roles; **company staff** see only roles for **their** logged-in `company_id` (no `company_id` query parameter).
+
+**`company_id` on roles:** Each row has optional **`company_id`** (FK to `companies`). **`super_admin`** is a **global** role (`company_id` **null**). **`company_admin`** and other tenant roles are **per company** (same role **name** can exist once per company with `guard_name=api`). List/show for company staff only returns roles for **their** `company_id`.
 
 ---
 
@@ -374,6 +378,7 @@ Replaces **direct** permissions on the user (Spatie); role-based permissions sti
 
 ```json
 {
+  "company_id": 1,
   "name": "cashier",
   "description": "Optional",
   "permission_names": ["customer.index", "billing.create"]
@@ -382,8 +387,9 @@ Replaces **direct** permissions on the user (Spatie); role-based permissions sti
 
 | Field | Rules |
 |-------|--------|
-| `name` | required, unique per `guard_name=api` |
-| `description` | optional (requires `description` column on `roles`) |
+| `company_id` | optional; **omit or null** for a **global** role (e.g. `super_admin`-style); otherwise must exist in `companies` |
+| `name` | required; unique per **`(company_id, name, guard_name)`** with `guard_name=api` |
+| `description` | optional |
 | `permission_names` | optional array; exists `permissions.name` |
 
 ---
@@ -394,13 +400,13 @@ Full replacement of permissions on the role.
 
 ```json
 {
-  "permission_names": ["customer.index", "customer.show"]
+  "permissions": ["customer.index", "customer.show"]
 }
 ```
 
 | Field | Rules |
 |-------|--------|
-| `permission_names` | required array; each exists with `guard_name=api` |
+| `permissions` | required array; each exists `permissions.name` with `guard_name=api` |
 
 ---
 
@@ -458,7 +464,7 @@ Full replacement of permissions on the role.
 | POST | `/categories/{id}/update` |
 | DELETE | `/categories/{id}/delete` |
 
-**Query (GET):** `per_page`, `search`, `status` (`1` / `0`).
+**Query (GET):** `per_page`, `search`, `status` (`1` / `0`). Listing is scoped to the **logged-in user’s company** (`user.company_id` from login); do not send `company_id`.
 
 **POST `/categories/store`:**
 
@@ -471,7 +477,14 @@ Full replacement of permissions on the role.
 }
 ```
 
-**POST `/categories/{id}/update`:** `category_name` (unique except self), `color`, `status` required `1`/`0`, `description` optional.
+| Field | Rules |
+|-------|--------|
+| `category_name` | required, unique within the authenticated user’s company |
+| `color` | required |
+| `status` | optional on store (`1`/`0`, defaults to `1`) |
+| `description` | optional, max 300 |
+
+**POST `/categories/{id}/update`:** same fields as store except `status` is required. Company is not sent in the body; it remains the logged-in user’s company.
 
 ---
 
@@ -491,7 +504,7 @@ Full replacement of permissions on the role.
 | POST | `/customers/{id}/update` |
 | DELETE | `/customers/{id}/delete` |
 
-**Query (GET `/customers`):** `per_page`, `search`, `tags` (array or single; JSON filter).
+**Query (GET `/customers`):** `per_page`, `search`, `tags` (array or single; JSON filter). Results and aggregates are scoped to the **logged-in user’s company**.
 
 **POST `/customers/store`:**
 
@@ -510,8 +523,10 @@ Full replacement of permissions on the role.
 | Field | Rules |
 |-------|--------|
 | `name`, `phone` | required |
-| `email` | optional, unique in `customers` |
+| `email` | optional, unique per **company** (same company as logged-in user) |
 | `address`, `date_of_birth`, `tags`, `notes` | optional |
+
+The customer’s `company_id` is set from the **authenticated user**; do not send `company_id` in the body.
 
 **POST `/customers/{id}/update`:** same shape; `email` unique except current customer.
 
@@ -535,7 +550,7 @@ Full replacement of permissions on the role.
 | POST | `/products/{id}/update` |
 | DELETE | `/products/{id}/delete` |
 
-**Query (GET):** `per_page`, `search`, `category_id`, `brand`, `stock_status` (`in_stock` | `low_stock` | `out_of_stock` | `all`).
+**Query (GET):** `per_page`, `search`, `category_id`, `brand`, `stock_status` (`in_stock` | `low_stock` | `out_of_stock` | `all`). Listing is scoped to the **logged-in user’s company**.
 
 **POST `/products/store` & `/products/{id}/update`:**
 
@@ -557,8 +572,10 @@ Full replacement of permissions on the role.
 | Field | Rules |
 |-------|--------|
 | `product_name`, `category_id`, `quantity_in_stock`, `purchase_price` | required |
-| `category_id` | exists `categories.id` |
+| `category_id` | must belong to the **same company** as the logged-in user |
 | `selling_price`, `minimum_stock_alert`, `brand`, `unit`, `description`, `notes` | optional |
+
+`company_id` on the product is set from the **authenticated user**; do not send `company_id` in the body.
 
 ---
 
@@ -576,7 +593,7 @@ Full replacement of permissions on the role.
 | POST | `/services/{id}/update` |
 | DELETE | `/services/{id}/delete` |
 
-**Query (GET):** `per_page`, `search`, `category_id`.
+**Query (GET):** `per_page`, `search`, `category_id`. Listing is scoped to the **logged-in user’s company**.
 
 **POST `/services/store` & `/services/{id}/update`:**
 
@@ -594,9 +611,11 @@ Full replacement of permissions on the role.
 | Field | Rules |
 |-------|--------|
 | `service_name`, `category_id`, `price`, `duration` | required |
-| `category_id` | exists `categories.id` |
+| `category_id` | must belong to the **same company** as the logged-in user |
 | `status` | optional, `1` or `0` |
 | `description` | optional |
+
+`company_id` on the service is set from the **authenticated user**; do not send `company_id` in the body.
 
 ---
 
@@ -616,7 +635,9 @@ Full replacement of permissions on the role.
 | POST | `/discounts/{id}/update` |
 | DELETE | `/discounts/{id}/delete` |
 
-**Query (GET `/discounts`):** `per_page`, `search`, `discount_type`, `applies_to`, `status`, `active_only`, `scheduled_only`.
+**Query (GET `/discounts`):** `per_page`, `search`, `discount_type`, `applies_to`, `status`, `active_only`, `scheduled_only`. Listing is scoped to the **logged-in user’s company**.
+
+**GET `/discounts/settings`:** no body; settings are loaded for the **authenticated user’s company** (no `company_id` query parameter).
 
 **POST `/discounts/settings`:**
 
@@ -631,6 +652,8 @@ Full replacement of permissions on the role.
 |-------|--------|
 | `staff_discount_limit` | required, integer 0–50 |
 | `require_discount_reason` | required (boolean-like accepted) |
+
+Settings are stored for the **logged-in user’s company**; do not send `company_id`.
 
 ---
 
@@ -665,6 +688,8 @@ Full replacement of permissions on the role.
 | `valid_from`, `valid_to` | required dates; `valid_to` ≥ `valid_from` |
 | `auto_apply`, `status` | optional |
 
+The discount’s `company_id` is set from the **authenticated user**; do not send `company_id` in the body.
+
 ---
 
 # 12. Bills (billing)
@@ -680,7 +705,7 @@ Full replacement of permissions on the role.
 | GET | `/bills/{id}/show` |
 | DELETE | `/bills/{id}/delete` |
 
-**Query (GET):** `per_page`, `search`, `customer_id`, `user_id`, `payment_method`, `date_from`, `date_to`.
+**Query (GET):** `per_page`, `search`, `customer_id`, `user_id`, `payment_method`, `date_from`, `date_to`. Listing is scoped to the **logged-in user’s company**.
 
 **POST `/bills/store`:**
 
@@ -694,6 +719,7 @@ Full replacement of permissions on the role.
   "subtotal": 1500,
   "discount_amount": 0,
   "discount_type": "none",
+  "discount_id": 5,
   "total": 1500,
   "payment_method": "cash",
   "paid_amount": 2000,
@@ -703,17 +729,18 @@ Full replacement of permissions on the role.
 
 | Field | Rules |
 |-------|--------|
-| `customer_id` | required, exists `customers.id` |
+| `customer_id` | required; must belong to the **same company** as the logged-in user |
 | `items` | required array, min 1 |
-| `items.*.service_id` | required, exists `services.id` |
+| `items.*.service_id` | required; must belong to the **same company** as the logged-in user |
 | `items.*.quantity` | required, integer ≥ 1 |
 | `subtotal`, `total`, `paid_amount` | required, numeric ≥ 0 |
 | `payment_method` | `cash`, `card`, or `online` |
 | `discount_amount` | optional, numeric ≥ 0 |
 | `discount_type` | optional: `none`, `percentage`, `fixed` |
+| `discount_id` | optional; must belong to the **same company** as the logged-in user |
 | `notes` | optional |
 
-Bill lines snapshot service price, category, etc. Authenticated user is stored as `user_id`.
+The bill’s `company_id` is set from the **authenticated user**; do not send `company_id` in the body. Bill lines snapshot service price, category, etc. Authenticated user is stored as `user_id`.
 
 ---
 
