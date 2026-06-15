@@ -99,6 +99,7 @@ class CompanyController extends Controller
             'admin.email' => 'required|email|max:255|unique:users,email',
             'admin.password' => 'required|string|min:6',
             'admin.status' => 'nullable|in:1,0',
+            'plan_id' => 'required|integer|exists:plans,id',
         ]);
         
         $moduleIds = array_values(array_unique(array_map('intval', $validated['module_ids'])));

@@ -3,12 +3,14 @@
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\CompanySubscriptionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DiscountController;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\ModuleController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\UserController;
@@ -21,6 +23,23 @@ Route::controller(LoginController::class)->group(function () {
 Route::post('/logout', [LoginController::class, 'logout']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::controller(PlanController::class)->prefix('/plans')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/store', 'store');
+        Route::get('/{id}/show', 'show');
+        Route::post('/{id}/update', 'update');
+        Route::delete('/{id}/delete', 'destroy');
+    });
+
+    // normal user
+    Route::controller(CompanySubscriptionController::class)->prefix('subscription')->group(function () {
+        Route::post('subscribe', 'subscribe');
+        Route::post('unsubscribe', 'unsubscribe');
+        Route::get('active', 'active');
+        Route::get('history', 'history');
+        Route::get('plans', 'plans');
+    });
+
     Route::middleware('company.module:module')->group(function () {
         Route::controller(ModuleController::class)->prefix('/modules')->group(function () {
             Route::get('/', 'index');

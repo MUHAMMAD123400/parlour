@@ -84,6 +84,8 @@ class LoginController extends Controller
             $companyPayload = [
                 'id' => $user->company->id,
                 'company_name' => $user->company->company_name,
+                'company_plan' => $user->company->plan,
+                'company_subscription' => $user->company->subscription,
                 'modules' => $user->company->modules->map(function ($m) {
                     return [
                         'id' => $m->id,

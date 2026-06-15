@@ -25,6 +25,7 @@ class Company extends Model
         'company_status',
         'company_notes',
         'company_description',
+        'plan_id',
     ];
 
     protected $casts = [
@@ -102,5 +103,25 @@ class Company extends Model
             ->unique()
             ->values()
             ->all();
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class, 'plan_id', 'id');
+    }
+
+    public function subscription()
+    {
+        return $this->hasOne(CompanySubscribePlan::class)->where('is_active', 1);
+    }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(CompanySubscribePlan::class, 'company_id', 'id');
+    }
+
+    public function subscriptionHistory()
+    {
+        return $this->hasMany(CompanySubscribePlanHistory::class, 'company_id', 'id');
     }
 }
