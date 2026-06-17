@@ -99,8 +99,10 @@ class LoginController extends Controller
                 })->values(),
             ];
         }
-        $subscriptionService = app(\App\Services\SubscriptionService::class);
-        
+        if(!$user->hasRole('super_admin')){
+            $subscriptionService = app(\App\Services\SubscriptionService::class);
+        }
+
         return response()->json([
             'user' => [
                 'id' => $user->id,
@@ -108,8 +110,8 @@ class LoginController extends Controller
                 'email' => $user->email,
                 'company_id' => $user->company_id,
                 'company' => $companyPayload,
-                'subscriptionService' => $subscriptionService
-                ->getCompanySubscriptionData(auth()->user()->company),
+                'subscriptionService' => !$user->hasRole('super_admin') ? $subscriptionService
+                ->getCompanySubscriptionData(auth()->user()->company) : null,
                 'roles' => $user->getRoleNames(), // returns a collection of role names
                 'permissions' => $allPermissions, // includes direct permissions + permissions from roles
             ],

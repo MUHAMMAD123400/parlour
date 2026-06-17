@@ -21,6 +21,7 @@ return new class extends Migration
             $table->enum('payment_status', ['pending', 'paid', 'failed', 'refunded'])->default('pending');
             $table->string('transaction_id')->nullable();
             $table->text('notes')->nullable();
+            $table->tinyInteger('is_active')->default(1);
             $table->timestamps();
             $table->softDeletes();
         });
