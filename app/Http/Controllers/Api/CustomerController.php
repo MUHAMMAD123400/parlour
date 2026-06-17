@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
 use App\Models\Customer;
+use App\Services\SubscriptionService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -107,6 +108,15 @@ class CustomerController extends Controller
     {
         try {
             $companyId = $this->resolveAuthenticatedCompanyId($request->user());
+
+            $company = auth()->user()->company;
+
+            if (!SubscriptionService::canCreateCustomer($company)) {
+                return response()->json([
+                    'message' => 'Customer limit exceeded.'
+                ], 422);
+            }
+
             $request->merge([
                 'tags' => $this->normalizeTagsForRequest($request->input('tags')),
             ]);
@@ -155,26 +165,26 @@ class CustomerController extends Controller
     {
         try {
             $customer = Customer::findOrFail($id);
-            
+
             // Get all bills for statistics
             $bills = Bill::query()->where('customer_id', $id)->get();
-            
+
             // Calculate statistics
             $totalVisits = $bills->count();
             $totalSpent = (float) $bills->sum('total');
             $avgPerVisit = $totalVisits > 0 ? round($totalSpent / $totalVisits, 2) : 0;
             $memberSince = $customer->created_at->format('d-M-Y');
-            $lastVisit = $bills->max('created_at') 
-                ? $bills->max('created_at')->format('d-M-Y') 
+            $lastVisit = $bills->max('created_at')
+                ? $bills->max('created_at')->format('d-M-Y')
                 : null;
-            
+
             // Add statistics to customer object
             $customer->total_visits = $totalVisits;
             $customer->total_spent = $totalSpent;
             $customer->avg_per_visit = $avgPerVisit;
             $customer->member_since = $memberSince;
             $customer->last_visit = $lastVisit;
-            
+
             return response()->json([
                 'message' => 'Customer fetched successfully',
                 'data' => $customer
@@ -195,11 +205,11 @@ class CustomerController extends Controller
         try {
             $customer = Customer::findOrFail($id);
             $per_page = $request->per_page ?? 10;
-            
+
             $query = Bill::query()->where('customer_id', $id)
                 ->with(['items.service', 'items.category', 'user'])
                 ->orderBy('created_at', 'desc');
-            
+
             // Filter by date range
             if ($request->filled('date_from')) {
                 $query->whereDate('created_at', '>=', $request->date_from);
@@ -207,9 +217,9 @@ class CustomerController extends Controller
             if ($request->filled('date_to')) {
                 $query->whereDate('created_at', '<=', $request->date_to);
             }
-            
+
             $bills = $query->paginate($per_page);
-            
+
             // Transform bills to include service names
             $bills->getCollection()->transform(function ($bill) {
                 $bill->services = $bill->items->map(function ($item) {
@@ -217,7 +227,7 @@ class CustomerController extends Controller
                 })->toArray();
                 return $bill;
             });
-            
+
             return \Helper::paginatedResponse($bills);
         } catch (ModelNotFoundException $e) {
             return errorResponse("Customer not found", 404);
@@ -234,22 +244,22 @@ class CustomerController extends Controller
     {
         try {
             $customer = Customer::findOrFail($id);
-            
+
             // Get all bills
             $bills = Bill::query()->where('customer_id', $id)
                 ->with(['items.service', 'items.category'])
                 ->orderBy('created_at', 'asc')
                 ->get();
-            
+
             // Monthly Spending (Last 6 Months)
             $monthlySpending = $this->getMonthlySpending($bills, 6);
-            
+
             // Most Availed Services
             $mostAvailedServices = $this->getMostAvailedServices($bills);
-            
+
             // Spending Trend (Last 6 Months)
             $spendingTrend = $this->getSpendingTrend($bills, 6);
-            
+
             return response()->json([
                 'message' => 'Spending analysis fetched successfully',
                 'data' => [
@@ -272,24 +282,24 @@ class CustomerController extends Controller
     {
         $endDate = now();
         $startDate = now()->subMonths($months - 1)->startOfMonth();
-        
+
         $monthlyData = [];
-        
+
         for ($i = $months - 1; $i >= 0; $i--) {
             $monthStart = now()->subMonths($i)->startOfMonth();
             $monthEnd = now()->subMonths($i)->endOfMonth();
             $monthKey = $monthStart->format('M');
-            
+
             $monthTotal = $bills->filter(function ($bill) use ($monthStart, $monthEnd) {
                 return $bill->created_at >= $monthStart && $bill->created_at <= $monthEnd;
             })->sum('total');
-            
+
             $monthlyData[] = [
                 'month' => $monthKey,
                 'amount' => (float) $monthTotal,
             ];
         }
-        
+
         return $monthlyData;
     }
 
@@ -300,7 +310,7 @@ class CustomerController extends Controller
     {
         $serviceCounts = [];
         $totalItems = 0;
-        
+
         foreach ($bills as $bill) {
             foreach ($bill->items as $item) {
                 $category = $item->category->category_name ?? 'Other';
@@ -311,7 +321,7 @@ class CustomerController extends Controller
                 $totalItems += $item->quantity;
             }
         }
-        
+
         $services = [];
         foreach ($serviceCounts as $category => $count) {
             $percentage = $totalItems > 0 ? round(($count / $totalItems) * 100, 1) : 0;
@@ -321,12 +331,12 @@ class CustomerController extends Controller
                 'percentage' => $percentage,
             ];
         }
-        
+
         // Sort by count descending
         usort($services, function ($a, $b) {
             return $b['count'] <=> $a['count'];
         });
-        
+
         return $services;
     }
 
@@ -337,24 +347,24 @@ class CustomerController extends Controller
     {
         $endDate = now();
         $startDate = now()->subMonths($months - 1)->startOfMonth();
-        
+
         $trendData = [];
-        
+
         for ($i = $months - 1; $i >= 0; $i--) {
             $monthStart = now()->subMonths($i)->startOfMonth();
             $monthEnd = now()->subMonths($i)->endOfMonth();
             $monthKey = $monthStart->format('M');
-            
+
             $monthTotal = $bills->filter(function ($bill) use ($monthStart, $monthEnd) {
                 return $bill->created_at >= $monthStart && $bill->created_at <= $monthEnd;
             })->sum('total');
-            
+
             $trendData[] = [
                 'month' => $monthKey,
                 'amount' => (float) $monthTotal,
             ];
         }
-        
+
         return $trendData;
     }
 

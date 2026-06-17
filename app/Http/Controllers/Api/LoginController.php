@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
@@ -26,11 +27,14 @@ class LoginController extends Controller
         }
 
         // Check if user is active (status = '1')
-        if ($user->status !== '1') {
+        if ($user->status != 1) {
             return response()->json([
                 'message' => 'Your account is inactive. Please contact administrator.'
             ], 403);
         }
+
+        // Login user into current request
+        Auth::login($user);
 
         // IP Restriction Check: Allow superadmin or users with permission to bypass IP restrictions
         // if (!($user->hasRole('superadmin') || $user->can('user.access.portal.anywhere'))) {
@@ -95,7 +99,8 @@ class LoginController extends Controller
                 })->values(),
             ];
         }
-
+        $subscriptionService = app(\App\Services\SubscriptionService::class);
+        
         return response()->json([
             'user' => [
                 'id' => $user->id,
@@ -103,6 +108,8 @@ class LoginController extends Controller
                 'email' => $user->email,
                 'company_id' => $user->company_id,
                 'company' => $companyPayload,
+                'subscriptionService' => $subscriptionService
+                ->getCompanySubscriptionData(auth()->user()->company),
                 'roles' => $user->getRoleNames(), // returns a collection of role names
                 'permissions' => $allPermissions, // includes direct permissions + permissions from roles
             ],

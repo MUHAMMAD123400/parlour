@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\CompanyAccessService;
+use App\Services\SubscriptionService;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
@@ -95,7 +96,13 @@ class UserController extends Controller
                     'error' => 'forbidden',
                 ], 403);
             }
-// dd('im here');
+
+            if (!SubscriptionService::canCreateStaff($auth->company)) {
+                return response()->json([
+                    'message' => 'Staff limit exceeded.'
+                ], 422);
+            }
+
             $data = $request->validate([
                 'name' => 'string|required|max:30',
                 'email' => 'string|required|unique:users',
