@@ -23,13 +23,55 @@ Route::controller(LoginController::class)->group(function () {
 Route::post('/logout', [LoginController::class, 'logout']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::controller(PlanController::class)->prefix('/plans')->group(function () {
-        Route::get('/', 'index');
-        Route::post('/store', 'store');
-        Route::get('/{id}/show', 'show');
-        Route::post('/{id}/update', 'update');
-        Route::delete('/{id}/delete', 'destroy');
+
+    // super admin start
+    Route::middleware(['super_admin'])->prefix('super-admin')->group(function () {
+
+        Route::controller(PlanController::class)->prefix('/plans')->group(function () {
+            Route::get('/', 'index');
+            Route::post('/store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+        });
+
+        Route::controller(ModuleController::class)->prefix('/modules')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+        });
+
+        Route::controller(CompanyController::class)->prefix('/companies')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+        });
+
+        Route::controller(PermissionController::class)->prefix('/permissions')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/all', 'fetchAll');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+        });
+
+        Route::controller(UserController::class)->prefix('/users')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+            Route::post('/{id}/update-role', 'updateRole');
+            Route::post('/{id}/assign-permissions', 'assignPermissions');
+        });
     });
+    // super admin end
+
 
     // normal user
     Route::controller(CompanySubscriptionController::class)->prefix('subscription')->group(function () {
@@ -38,24 +80,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('active', 'active');
         Route::get('history', 'history');
         Route::get('plans', 'plans');
-    });
-
-    Route::middleware('company.module:module')->group(function () {
-        Route::controller(ModuleController::class)->prefix('/modules')->group(function () {
-            Route::get('/', 'index');
-            Route::post('store', 'store');
-            Route::get('/{id}/show', 'show');
-            Route::post('/{id}/update', 'update');
-            Route::delete('/{id}/delete', 'destroy');
-        });
-    });
-
-    Route::controller(CompanyController::class)->prefix('/companies')->group(function () {
-        Route::get('/', 'index');
-        Route::post('store', 'store');
-        Route::get('/{id}/show', 'show');
-        Route::post('/{id}/update', 'update');
-        Route::delete('/{id}/delete', 'destroy');
     });
 
     Route::middleware('company.module:user')->group(function () {
@@ -85,10 +109,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::controller(PermissionController::class)->prefix('/permissions')->group(function () {
             Route::get('/', 'index');
             Route::get('/all', 'fetchAll');
-            Route::post('store', 'store');
-            Route::get('/{id}/show', 'show');
-            Route::post('/{id}/update', 'update');
-            Route::delete('/{id}/delete', 'destroy');
         });
     });
 

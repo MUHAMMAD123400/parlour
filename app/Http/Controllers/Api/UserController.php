@@ -97,7 +97,7 @@ class UserController extends Controller
                 ], 403);
             }
 
-            if (!SubscriptionService::canCreateStaff($auth->company)) {
+            if (!$auth->isSuperAdmin() && !SubscriptionService::canCreateStaff($auth->company)) {
                 return response()->json([
                     'message' => 'Staff limit exceeded.'
                 ], 422);
