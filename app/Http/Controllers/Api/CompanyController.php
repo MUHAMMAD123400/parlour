@@ -31,7 +31,7 @@ class CompanyController extends Controller
             $perPage = $request->per_page ?? 10;
 
             if ($user->isSuperAdmin()) {
-                $query = Company::with(['modules' => function ($q) {
+                $query = Company::with(['subscription','modules' => function ($q) {
                     $q->wherePivot('company_module_status', '1')->wherePivotNull('deleted_at');
                 }]);
 

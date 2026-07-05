@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\Reports\RevenueReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(LoginController::class)->group(function () {
@@ -21,6 +22,11 @@ Route::controller(LoginController::class)->group(function () {
 });
 
 Route::post('/logout', [LoginController::class, 'logout']);
+
+Route::prefix('super-admin')->controller(LoginController::class)->group(function () {
+    Route::post('/login', 'login');
+    Route::post('/logout', 'logout');
+});
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -49,6 +55,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}/show', 'show');
             Route::post('/{id}/update', 'update');
             Route::delete('/{id}/delete', 'destroy');
+        });
+
+            Route::middleware('company.module:role')->group(function () {
+            Route::controller(RoleController::class)->prefix('/roles')->group(function () {
+                Route::get('/', 'index');
+                Route::post('store', 'store');
+                Route::get('/{id}/show', 'show');
+                Route::post('/{id}/update', 'update');
+                Route::delete('/{id}/delete', 'destroy');
+                Route::post('/{id}/assign-permissions', 'assignPermissions');
+            });
         });
 
         Route::controller(PermissionController::class)->prefix('/permissions')->group(function () {
