@@ -15,6 +15,10 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\Reports\RevenueReportController;
+use App\Http\Controllers\Api\Reports\ServiceReportController;
+use App\Http\Controllers\Api\Reports\CustomerReportController;
+use App\Http\Controllers\Api\Reports\PaymentReportController;
+use App\Http\Controllers\Api\Reports\StaffReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(LoginController::class)->group(function () {
@@ -189,6 +193,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('store', 'store');
             Route::get('/{id}/show', 'show');
             Route::delete('/{id}/delete', 'destroy');
+        });
+
+        // ── Reports ──────────────────────────────────────────────────────────
+        Route::prefix('reports')->group(function () {
+            Route::get('revenue', [RevenueReportController::class, 'revenue']);
+            Route::get('services', [ServiceReportController::class, 'services']);
+            Route::get('customers', [CustomerReportController::class, 'customers']);
+            Route::get('payments', [PaymentReportController::class, 'payments']);
+            Route::get('staff', [StaffReportController::class, 'staff']);
         });
     });
 });
