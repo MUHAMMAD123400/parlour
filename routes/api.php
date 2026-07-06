@@ -90,6 +90,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/update-role', 'updateRole');
             Route::post('/{id}/assign-permissions', 'assignPermissions');
         });
+
+        // ── Super Admin Reports (with optional company_id) ──────────────
+        Route::prefix('reports')->group(function () {
+            Route::get('revenue', [RevenueReportController::class, 'revenue']);
+            Route::get('services', [ServiceReportController::class, 'services']);
+            Route::get('customers', [CustomerReportController::class, 'customers']);
+            Route::get('payments', [PaymentReportController::class, 'payments']);
+            Route::get('staff', [StaffReportController::class, 'staff']);
+        });
     });
     // super admin end
 

@@ -23,12 +23,13 @@ class StaffReportController extends Controller
     public function staff(Request $request)
     {
         try {
-            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
+            $companyId = $this->resolveReportCompanyId($request->user(), $request->input('company_id'));
 
             $request->validate([
-                'date_from' => 'nullable|date_format:Y-m-d',
-                'date_to'   => 'nullable|date_format:Y-m-d|after_or_equal:date_from',
-                'per_page'  => 'nullable|integer|min:1|max:100',
+                'company_id' => 'nullable|integer|exists:companies,id',
+                'date_from'  => 'nullable|date_format:Y-m-d',
+                'date_to'    => 'nullable|date_format:Y-m-d|after_or_equal:date_from',
+                'per_page'   => 'nullable|integer|min:1|max:100',
             ]);
 
             $perPage = (int) $request->input('per_page', 10);

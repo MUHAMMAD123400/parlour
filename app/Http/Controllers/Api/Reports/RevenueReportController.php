@@ -24,9 +24,10 @@ class RevenueReportController extends Controller
     public function revenue(Request $request)
     {
         try {
-            $companyId = $this->resolveAuthenticatedCompanyId($request->user());
-
+            $companyId = $this->resolveReportCompanyId($request->user(), $request->input('company_id'));
+            
             $request->validate([
+                'company_id' => 'nullable|integer|exists:companies,id',
                 'date_from'  => 'nullable|date_format:Y-m-d',
                 'date_to'    => 'nullable|date_format:Y-m-d|after_or_equal:date_from',
                 'chart_type' => 'nullable|in:daily,weekly,monthly',
