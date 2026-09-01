@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class BillItem extends Model
 {
+    use BelongsToCompany;
     use HasFactory;
 
     /**
@@ -15,6 +17,7 @@ class BillItem extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'company_id',   // tenant scope — must be populated on every create()
         'bill_id',
         'service_id',
         'item_name',
@@ -32,15 +35,18 @@ class BillItem extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'company_id'  => 'integer',
         'category_id' => 'integer',
-        'quantity' => 'integer',
-        'unit_price' => 'decimal:2',
+        'quantity'    => 'integer',
+        'unit_price'  => 'decimal:2',
         'total_price' => 'decimal:2',
-        'duration' => 'integer',
+        'duration'    => 'integer',
     ];
 
+    // ── Relationships ────────────────────────────────────────────────────────
+
     /**
-     * Get the bill that owns the item.
+     * The bill this item belongs to.
      */
     public function bill()
     {
@@ -48,13 +54,16 @@ class BillItem extends Model
     }
 
     /**
-     * Get the service for this item.
+     * The service linked to this line item (nullable — may be a product).
      */
     public function service()
     {
         return $this->belongsTo(Service::class);
     }
 
+    /**
+     * The category of the service / product at time of billing.
+     */
     public function category()
     {
         return $this->belongsTo(Category::class);

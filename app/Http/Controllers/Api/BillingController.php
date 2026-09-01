@@ -149,15 +149,16 @@ class BillingController extends Controller
                     $totalPrice = $unitPrice * $item['quantity'];
 
                     BillItem::create([
-                        'bill_id' => $bill->id,
-                        'service_id' => $item['service_id'],
-                        'item_name' => $service->service_name,
-                        'item_type' => 'service',
+                        'company_id'  => $companyId,
+                        'bill_id'     => $bill->id,
+                        'service_id'  => $item['service_id'],
+                        'item_name'   => $service->service_name,
+                        'item_type'   => 'service',
                         'category_id' => $service->category_id,
-                        'quantity' => $item['quantity'],
-                        'unit_price' => $unitPrice,
+                        'quantity'    => $item['quantity'],
+                        'unit_price'  => $unitPrice,
                         'total_price' => $totalPrice,
-                        'duration' => $service->duration,
+                        'duration'    => $service->duration,
                     ]);
                 }
 
