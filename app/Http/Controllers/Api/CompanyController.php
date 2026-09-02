@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\CompanyModule;
+use App\Models\CompanySubscribePlan;
+use App\Models\CompanySubscribePlanHistory;
 use App\Models\Module;
+use App\Models\Plan;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\CompanyAccessService;
@@ -80,28 +83,29 @@ class CompanyController extends Controller
         }
 
         $validated = $request->validate([
-            'company_name' => 'required|string|max:255',
-            'company_email' => 'nullable|email|max:255',
-            'company_phone' => 'nullable|string|max:50',
-            'company_address' => 'nullable|string',
-            'company_city' => 'nullable|string|max:100',
-            'company_state' => 'nullable|string|max:100',
-            'company_zip' => 'nullable|string|max:20',
-            'company_country' => 'nullable|string|max:100',
-            'company_logo' => 'nullable|string|max:500',
-            'company_website' => 'nullable|string|max:255',
-            'company_status' => 'nullable|in:1,0',
-            'company_notes' => 'nullable|string',
+            'company_name'      => 'required|string|max:255',
+            'company_email'     => 'nullable|email|max:255',
+            'company_phone'     => 'nullable|string|max:50',
+            'company_address'   => 'nullable|string',
+            'company_city'      => 'nullable|string|max:100',
+            'company_state'     => 'nullable|string|max:100',
+            'company_zip'       => 'nullable|string|max:20',
+            'company_country'   => 'nullable|string|max:100',
+            'company_logo'      => 'nullable|string|max:500',
+            'company_website'   => 'nullable|string|max:255',
+            'company_status'    => 'nullable|in:1,0',
+            'company_notes'     => 'nullable|string',
             'company_description' => 'nullable|string',
-            'module_ids' => 'required|array|min:1',
-            'module_ids.*' => 'integer|exists:modules,id',
-            'admin.name' => 'required|string|max:255',
-            'admin.email' => 'required|email|max:255|unique:users,email',
-            'admin.password' => 'required|string|min:6',
-            'admin.status' => 'nullable|in:1,0',
-            'plan_id' => 'required|integer|exists:plans,id',
+            'module_ids'        => 'required|array|min:1',
+            'module_ids.*'      => 'integer|exists:modules,id',
+            'admin.name'        => 'required|string|max:255',
+            'admin.email'       => 'required|email|max:255|unique:users,email',
+            'admin.password'    => 'required|string|min:6',
+            'admin.status'      => 'nullable|in:1,0',
+            'plan_id'           => 'required|integer|exists:plans,id',
+            'subscription_type' => 'nullable|in:monthly,quarterly,yearly',
         ]);
-        
+
         $moduleIds = array_values(array_unique(array_map('intval', $validated['module_ids'])));
 
         $missingKey = Module::whereIn('id', $moduleIds)
@@ -171,6 +175,33 @@ class CompanyController extends Controller
 
                 CompanyAccessService::grantCompanyAdminAllModulePermissions($adminUser, $company);
 
+                // ── Subscription create karo (superadmin ki taraf se) ──────
+                $subType  = $validated['subscription_type'] ?? 'monthly';
+                $subStart = now();
+                $subEnd   = match ($subType) {
+                    'monthly'   => $subStart->copy()->addMonth(),
+                    'quarterly' => $subStart->copy()->addMonths(3),
+                    'yearly'    => $subStart->copy()->addYear(),
+                };
+
+                CompanySubscribePlan::create([
+                    'company_id' => $company->id,
+                    'plan_id'    => $validated['plan_id'],
+                    'start_date' => $subStart,
+                    'end_date'   => $subEnd,
+                    'type'       => $subType,
+                    'is_active'  => 1,
+                ]);
+
+                CompanySubscribePlanHistory::create([
+                    'company_id' => $company->id,
+                    'plan_id'    => $validated['plan_id'],
+                    'start_date' => $subStart,
+                    'end_date'   => $subEnd,
+                    'action'     => 'subscribed',
+                ]);
+                // ─────────────────────────────────────────────────────────
+
                 return $company->fresh(['modules' => function ($q) {
                     $q->wherePivot('company_module_status', '1')->wherePivotNull('deleted_at');
                 }]);
@@ -227,21 +258,23 @@ class CompanyController extends Controller
 
             if ($isSuper) {
                 $validated = $request->validate([
-                    'company_name' => 'required|string|max:255',
-                    'company_email' => 'nullable|email|max:255',
-                    'company_phone' => 'nullable|string|max:50',
-                    'company_address' => 'nullable|string',
-                    'company_city' => 'nullable|string|max:100',
-                    'company_state' => 'nullable|string|max:100',
-                    'company_zip' => 'nullable|string|max:20',
-                    'company_country' => 'nullable|string|max:100',
-                    'company_logo' => 'nullable|string|max:500',
-                    'company_website' => 'nullable|string|max:255',
-                    'company_status' => 'required|in:1,0',
-                    'company_notes' => 'nullable|string',
+                    'company_name'      => 'required|string|max:255',
+                    'company_email'     => 'nullable|email|max:255',
+                    'company_phone'     => 'nullable|string|max:50',
+                    'company_address'   => 'nullable|string',
+                    'company_city'      => 'nullable|string|max:100',
+                    'company_state'     => 'nullable|string|max:100',
+                    'company_zip'       => 'nullable|string|max:20',
+                    'company_country'   => 'nullable|string|max:100',
+                    'company_logo'      => 'nullable|string|max:500',
+                    'company_website'   => 'nullable|string|max:255',
+                    'company_status'    => 'required|in:1,0',
+                    'company_notes'     => 'nullable|string',
                     'company_description' => 'nullable|string',
-                    'module_ids' => 'sometimes|array|min:1',
-                    'module_ids.*' => 'integer|exists:modules,id',
+                    'module_ids'        => 'sometimes|array|min:1',
+                    'module_ids.*'      => 'integer|exists:modules,id',
+                    'plan_id'           => 'nullable|integer|exists:plans,id',
+                    'subscription_type' => 'nullable|in:monthly,quarterly,yearly',
                 ]);
             } else {
                 $validated = $request->validate([
@@ -280,6 +313,41 @@ class CompanyController extends Controller
                     $this->syncCompanyModules($company, $moduleIds);
                     CompanyAccessService::refreshCompanyAdminsPermissions($company->fresh(['modules']));
                 }
+
+                // ── SuperAdmin plan assign / update ───────────────────────
+                if ($isSuper && isset($validated['plan_id'])) {
+                    $subType  = $validated['subscription_type'] ?? 'monthly';
+                    $subStart = now();
+                    $subEnd   = match ($subType) {
+                        'monthly'   => $subStart->copy()->addMonth(),
+                        'quarterly' => $subStart->copy()->addMonths(3),
+                        'yearly'    => $subStart->copy()->addYear(),
+                    };
+
+                    // purani subscription deactivate karo
+                    CompanySubscribePlan::where('company_id', $company->id)
+                        ->update(['is_active' => 0]);
+
+                    // nayi subscription banao
+                    CompanySubscribePlan::create([
+                        'company_id' => $company->id,
+                        'plan_id'    => $validated['plan_id'],
+                        'start_date' => $subStart,
+                        'end_date'   => $subEnd,
+                        'type'       => $subType,
+                        'is_active'  => 1,
+                    ]);
+
+                    // history record karo
+                    CompanySubscribePlanHistory::create([
+                        'company_id' => $company->id,
+                        'plan_id'    => $validated['plan_id'],
+                        'start_date' => $subStart,
+                        'end_date'   => $subEnd,
+                        'action'     => 'subscribed',
+                    ]);
+                }
+                // ─────────────────────────────────────────────────────────
             });
 
             return response()->json([

@@ -61,15 +61,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}/delete', 'destroy');
         });
 
-            Route::middleware('company.module:role')->group(function () {
-            Route::controller(RoleController::class)->prefix('/roles')->group(function () {
-                Route::get('/', 'index');
-                Route::post('store', 'store');
-                Route::get('/{id}/show', 'show');
-                Route::post('/{id}/update', 'update');
-                Route::delete('/{id}/delete', 'destroy');
-                Route::post('/{id}/assign-permissions', 'assignPermissions');
-            });
+        Route::controller(RoleController::class)->prefix('/roles')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+            Route::post('/{id}/assign-permissions', 'assignPermissions');
         });
 
         Route::controller(PermissionController::class)->prefix('/permissions')->group(function () {
@@ -99,6 +97,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('payments', [PaymentReportController::class, 'payments']);
             Route::get('staff', [StaffReportController::class, 'staff']);
         });
+
+        // ── Super Admin — Company Subscription Management ────────────────
+        Route::controller(CompanySubscriptionController::class)->prefix('subscription')->group(function () {
+            Route::get('/', 'index');                                           // all subscriptions with filters + sort
+            Route::post('subscribe', 'subscribe');                              // kisi bhi company ko plan assign karo
+            Route::post('unsubscribe', 'unsubscribe');                         // kisi bhi company ka plan cancel karo
+            Route::get('{company_id}/active', 'active');                       // company ki active subscription
+            Route::get('{company_id}/history', 'history');                     // company ki subscription history
+            Route::post('{id}/payment-status', 'updatePaymentStatus');         // payment status mark karo
+        });
+        // ─────────────────────────────────────────────────────────────────
     });
     // super admin end
 

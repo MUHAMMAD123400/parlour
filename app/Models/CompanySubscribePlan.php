@@ -12,6 +12,9 @@ class CompanySubscribePlan extends Model
         'start_date',
         'end_date',
         'type',
+        'payment_status',
+        'transaction_id',
+        'notes',
         'is_active',
     ];
 
