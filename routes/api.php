@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\CompanyReportController;
 use App\Http\Controllers\Api\CompanySubscriptionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DiscountController;
@@ -59,6 +60,22 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}/show', 'show');
             Route::post('/{id}/update', 'update');
             Route::delete('/{id}/delete', 'destroy');
+        });
+
+        Route::controller(CompanyReportController::class)->prefix('/company-report')->group(function () {
+            Route::get('/overview', 'overview');
+            Route::get('/{id}/overview', 'overview');
+            Route::get('/staff', 'staff');
+            Route::get('/{id}/staff', 'staff');
+            Route::get('/customers', 'customers');
+            Route::get('/{id}/customers', 'customers');
+            Route::get('/services', 'services');
+            Route::get('/{id}/services', 'services');
+            Route::get('/products', 'products');
+            Route::get('/{id}/products', 'products');
+            Route::get('/access', 'access');
+            Route::get('/{id}/access', 'access');
+            Route::post('/{id}/toggle-module-status', 'toggleModuleStatus');
         });
 
         Route::controller(RoleController::class)->prefix('/roles')->group(function () {
