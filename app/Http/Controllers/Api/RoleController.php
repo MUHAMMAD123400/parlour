@@ -39,28 +39,85 @@ class RoleController extends Controller
     {
         try {
             $per_page = $request->per_page ?? 10;
-            $query = Role::query()->where('guard_name', 'api')->with('permissions');
 
-            if (! $request->user()->isSuperAdmin()) {
-                $query->where('company_id', $this->resolveAuthenticatedCompanyId($request->user()));
+            if ($request->user()->isSuperAdmin()) {
+                $query = Company::query()
+                    ->whereHas('roles', function ($q) {
+                        $q->where('guard_name', 'api')
+                            ->where('name', '!=', 'super_admin');
+                    })
+                    ->with(['roles' => function ($q) {
+                        $q->where('guard_name', 'api')
+                            ->where('name', '!=', 'super_admin');
+                    }]);
+
+                if ($request->filled('company_id')) {
+                    $query->where('id', $request->company_id);
+                }
+
+                if ($request->filled('search')) {
+                    $s = $request->search;
+                    $query->where(function ($q) use ($s) {
+                        $q->where('company_name', 'like', '%' . $s . '%')
+                            ->orWhere('company_email', 'like', '%' . $s . '%')
+                            ->orWhereHas('roles', function ($rq) use ($s) {
+                                $rq->where('name', 'like', '%' . $s . '%');
+                            });
+                    });
+                }
+
+                $companies = $query->paginate($per_page);
+
+                $companies->getCollection()->transform(function ($company) {
+                    return [
+                        'company' => [
+                            'id' => $company->id,
+                            'company_name' => $company->company_name,
+                            'company_email' => $company->company_email,
+                            'company_phone' => $company->company_phone,
+                            'company_status' => (string) $company->company_status,
+                            'status_label' => (string) $company->company_status === '1' ? 'Active' : 'Inactive',
+                            'company_logo' => $company->company_logo,
+                            'company_website' => $company->company_website,
+                            'company_notes' => $company->company_notes,
+                            'company_description' => $company->company_description,
+                            'roles' => $company->roles->map(function ($role) {
+                                return [
+                                    'name' => $role->name,
+                                    'guard_name' => $role->guard_name,
+                                    'description' => $role->description,
+                                    'created_at' => $role->created_at,
+                                    'updated_at' => $role->updated_at,
+                                ];
+                            })->values(),
+                            'created_at' => $company->created_at,
+                            'created_at_formatted' => $company->created_at ? $company->created_at->format('d-M-Y, g:i a') : null,
+                            'updated_at' => $company->updated_at,
+                            'updated_at_formatted' => $company->updated_at ? $company->updated_at->format('d-M-Y, g:i a') : null,
+                        ],
+                    ];
+                });
+
+                return \Helper::paginatedResponse($companies);
             }
+
+            $query = Role::query()->where('guard_name', 'api')->with('permissions')
+                ->where('company_id', $this->resolveAuthenticatedCompanyId($request->user()));
 
             $roles = $query->when($request->filled('search'), function ($query) use ($request) {
                 $query->where('name', 'like', '%' . $request->search . '%');
             })
                 ->paginate($per_page);
 
-            if (! $request->user()->isSuperAdmin()) {
-                $keys = $this->companyPermissionModuleKeys($request);
-                $roles->getCollection()->transform(function ($role) use ($keys) {
-                    $role->setRelation(
-                        'permissions',
-                        $role->permissions->whereIn('module', $keys)->values()
-                    );
+            $keys = $this->companyPermissionModuleKeys($request);
+            $roles->getCollection()->transform(function ($role) use ($keys) {
+                $role->setRelation(
+                    'permissions',
+                    $role->permissions->whereIn('module', $keys)->values()
+                );
 
-                    return $role;
-                });
-            }
+                return $role;
+            });
 
             return \Helper::paginatedResponse($roles);
         } catch (Exception $e) {
