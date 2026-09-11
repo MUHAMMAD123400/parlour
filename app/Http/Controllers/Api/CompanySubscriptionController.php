@@ -136,11 +136,12 @@ class CompanySubscriptionController extends Controller
 
         // history
         CompanySubscribePlanHistory::create([
-            'company_id' => $request->company_id,
-            'plan_id'    => $request->plan_id,
-            'start_date' => $start,
-            'end_date'   => $endDate,
-            'action'     => 'subscribed',
+            'company_subscribe_plan_id' => $subscription->id,
+            'company_id'                => $request->company_id,
+            'plan_id'                   => $request->plan_id,
+            'start_date'                => $start,
+            'end_date'                  => $endDate,
+            'action'                    => 'subscribed',
         ]);
 
         return response()->json([
@@ -178,11 +179,12 @@ class CompanySubscriptionController extends Controller
         $subscription->update(['is_active' => 0]);
 
         CompanySubscribePlanHistory::create([
-            'company_id' => $request->company_id,
-            'plan_id'    => $subscription->plan_id,
-            'start_date' => $subscription->start_date,
-            'end_date'   => now(),
-            'action'     => 'unsubscribed',
+            'company_subscribe_plan_id' => $subscription->id,
+            'company_id'                => $request->company_id,
+            'plan_id'                   => $subscription->plan_id,
+            'start_date'                => $subscription->start_date,
+            'end_date'                  => now(),
+            'action'                    => 'unsubscribed',
         ]);
 
         return response()->json([
@@ -220,7 +222,7 @@ class CompanySubscriptionController extends Controller
 
         $perPage = $request->per_page ?? 10;
 
-        $history = CompanySubscribePlanHistory::with('plan')
+        $history = CompanySubscribePlanHistory::with(['plan', 'subscription'])
             ->where('company_id', $companyId)
             ->latest()
             ->paginate($perPage);

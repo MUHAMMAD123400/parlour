@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Company extends Model
 {
     use SoftDeletes;
 
     protected $fillable = [
+        'organization_id',
         'company_name',
         'company_email',
         'company_phone',
@@ -31,6 +33,15 @@ class Company extends Model
         'license_number',
         'plan_id',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function ($company) {
+            if (empty($company->organization_id)) {
+                $company->organization_id = (string) Str::uuid();
+            }
+        });
+    }
 
     protected $casts = [
         'company_status' => 'string',

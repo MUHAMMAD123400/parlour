@@ -44,6 +44,7 @@ class CompanyController extends Controller
                 $query->where(function ($q) use ($s) {
                     $q->where('company_name', 'like', '%' . $s . '%')
                         ->orWhere('company_email', 'like', '%' . $s . '%')
+                        ->orWhere('organization_id', 'like', '%' . $s . '%')
                         ->orWhere('ntn', 'like', '%' . $s . '%')
                         ->orWhere('company_phone', 'like', '%' . $s . '%');
                 });
@@ -230,7 +231,7 @@ class CompanyController extends Controller
 
                 $paymentStatus = $request->input('payment_status', 'pending');
 
-                CompanySubscribePlan::create([
+                $subscription = CompanySubscribePlan::create([
                     'company_id'     => $company->id,
                     'plan_id'        => $validated['plan_id'],
                     'start_date'     => $subStart,
@@ -241,11 +242,12 @@ class CompanyController extends Controller
                 ]);
 
                 CompanySubscribePlanHistory::create([
-                    'company_id' => $company->id,
-                    'plan_id'    => $validated['plan_id'],
-                    'start_date' => $subStart,
-                    'end_date'   => $subEnd,
-                    'action'     => 'subscribed',
+                    'company_subscribe_plan_id' => $subscription->id,
+                    'company_id'                => $company->id,
+                    'plan_id'                   => $validated['plan_id'],
+                    'start_date'                => $subStart,
+                    'end_date'                  => $subEnd,
+                    'action'                    => 'subscribed',
                 ]);
 
                 return $company->fresh([
@@ -456,7 +458,7 @@ class CompanyController extends Controller
                         ->update(['is_active' => 0]);
 
                     // create new subscription
-                    CompanySubscribePlan::create([
+                    $subscription = CompanySubscribePlan::create([
                         'company_id'     => $company->id,
                         'plan_id'        => $validated['plan_id'],
                         'start_date'     => $subStart,
@@ -468,11 +470,12 @@ class CompanyController extends Controller
 
                     // history record
                     CompanySubscribePlanHistory::create([
-                        'company_id' => $company->id,
-                        'plan_id'    => $validated['plan_id'],
-                        'start_date' => $subStart,
-                        'end_date'   => $subEnd,
-                        'action'     => 'subscribed',
+                        'company_subscribe_plan_id' => $subscription->id,
+                        'company_id'                => $company->id,
+                        'plan_id'                   => $validated['plan_id'],
+                        'start_date'                => $subStart,
+                        'end_date'                  => $subEnd,
+                        'action'                    => 'subscribed',
                     ]);
                 }
             });

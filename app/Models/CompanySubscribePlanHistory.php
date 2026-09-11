@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class CompanySubscribePlanHistory extends Model
 {
     protected $fillable = [
+        'company_subscribe_plan_id',
         'company_id',
         'plan_id',
         'start_date',
@@ -19,6 +20,16 @@ class CompanySubscribePlanHistory extends Model
         'end_date' => 'date',
         'action' => 'string',
     ];
+
+    public function subscription()
+    {
+        return $this->belongsTo(CompanySubscribePlan::class, 'company_subscribe_plan_id', 'id');
+    }
+
+    public function companySubscribePlan()
+    {
+        return $this->belongsTo(CompanySubscribePlan::class, 'company_subscribe_plan_id', 'id');
+    }
 
     public function plan()
     {

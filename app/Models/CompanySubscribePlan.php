@@ -34,4 +34,9 @@ class CompanySubscribePlan extends Model
     {
         return $this->belongsTo(Company::class, 'company_id', 'id');
     }
+
+    public function histories()
+    {
+        return $this->hasMany(CompanySubscribePlanHistory::class, 'company_subscribe_plan_id', 'id');
+    }
 }

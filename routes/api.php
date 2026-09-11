@@ -242,10 +242,6 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
-    Route::controller(PlanController::class)->prefix('/plans')->group(function () {
-        Route::get('/', 'index');
-    });
-
     Route::middleware('company.module:billing')->group(function () {
         Route::controller(BillingController::class)->prefix('/bills')->group(function () {
             Route::get('/', 'index');
