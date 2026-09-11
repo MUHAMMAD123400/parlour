@@ -20,7 +20,7 @@ class Plan extends Model
         'quarterly',
         'yearly',
         'description',
-        'features',
+        'features_ids',
     ];
 
     protected $casts = [
@@ -30,7 +30,22 @@ class Plan extends Model
         'monthly' => 'decimal:2',
         'quarterly' => 'decimal:2',
         'yearly' => 'decimal:2',
+        'features_ids' => 'array',
     ];
+
+    protected $appends = [
+        'modules',
+    ];
+
+    public function getModulesAttribute()
+    {
+        $ids = $this->features_ids;
+        if (empty($ids) || ! is_array($ids)) {
+            return [];
+        }
+
+        return Module::whereIn('id', $ids)->get();
+    }
 
     public function company()
     {

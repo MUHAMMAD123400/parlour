@@ -3,10 +3,12 @@
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\CompanyInvoiceController;
 use App\Http\Controllers\Api\CompanyReportController;
 use App\Http\Controllers\Api\CompanySubscriptionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\IpController;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\ModuleController;
 use App\Http\Controllers\Api\PermissionController;
@@ -62,6 +64,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}/delete', 'destroy');
         });
 
+        Route::controller(CompanyInvoiceController::class)->prefix('/invoices')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+            Route::post('/{id}/payment-status', 'updatePaymentStatus');
+        });
+
         Route::controller(CompanyReportController::class)->prefix('/company-report')->group(function () {
             Route::get('/overview', 'overview');
             Route::get('/{id}/overview', 'overview');
@@ -104,6 +115,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/{id}/delete', 'destroy');
             Route::post('/{id}/update-role', 'updateRole');
             Route::post('/{id}/assign-permissions', 'assignPermissions');
+        });
+
+        Route::controller(IpController::class)->prefix('/ips')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+            Route::post('/{id}/toggle-status', 'toggleStatus');
         });
 
         // ── Super Admin Reports (with optional company_id) ──────────────

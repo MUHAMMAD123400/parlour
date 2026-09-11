@@ -25,6 +25,10 @@ class Company extends Model
         'company_status',
         'company_notes',
         'company_description',
+        'company_type',
+        'ntn',
+        'strn',
+        'license_number',
         'plan_id',
     ];
 

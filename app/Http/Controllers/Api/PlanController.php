@@ -14,7 +14,7 @@ class PlanController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->per_page ?? 10;
-        
+
         $plans = Plan::query()
             ->when($request->search, function ($query, $search) {
                 $query->where('name', 'like', "%{$search}%");
@@ -27,7 +27,7 @@ class PlanController extends Controller
             })
             ->latest()
             ->paginate($perPage);
-        
+
         return \Helper::paginatedResponse($plans);
     }
 
@@ -41,15 +41,13 @@ class PlanController extends Controller
             'status' => 'required|in:0,1',
 
             'staff_limit' => 'required|in:5,10,25,50,100,unlimited',
-
             'customer_limit' => 'required|in:500,1000,2000,5000,10000,unlimited',
-
             'monthly' => 'required|numeric|min:0',
             'quarterly' => 'required|numeric|min:0',
             'yearly' => 'required|numeric|min:0',
-
             'description' => 'nullable|string',
-            'features' => 'nullable|string',
+            'features_ids' => 'nullable|array',
+            'features_ids.*' => 'integer|exists:modules,id',
         ]);
 
         $plan = Plan::create($validated);
@@ -57,7 +55,7 @@ class PlanController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Plan created successfully.',
-            'data' => $plan
+            'data' => $plan,
         ], 201);
     }
 
@@ -70,7 +68,7 @@ class PlanController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $plan
+            'data' => $plan,
         ]);
     }
 
@@ -84,7 +82,6 @@ class PlanController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'status' => 'required|in:0,1',
-
             'staff_limit' => 'required|in:5,10,25,50,100,unlimited',
 
             'customer_limit' => 'required|in:500,1000,2000,5000,10000,unlimited',
@@ -94,7 +91,8 @@ class PlanController extends Controller
             'yearly' => 'required|numeric|min:0',
 
             'description' => 'nullable|string',
-            'features' => 'nullable|string',
+            'features_ids' => 'nullable|array',
+            'features_ids.*' => 'integer|exists:modules,id',
         ]);
 
         $plan->update($validated);
@@ -102,7 +100,7 @@ class PlanController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Plan updated successfully.',
-            'data' => $plan
+            'data' => $plan->fresh(),
         ]);
     }
 
