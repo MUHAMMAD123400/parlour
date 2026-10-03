@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Plan;
 use App\Models\CompanySubscribePlan;
 use App\Models\CompanySubscribePlanHistory;
+use App\Models\CompanyInvoice;
 
 class CompanySubscriptionController extends Controller
 {
@@ -227,7 +228,21 @@ class CompanySubscriptionController extends Controller
             ->latest()
             ->paginate($perPage);
 
-        return \Helper::paginatedResponse($history);
+        // ── Invoice Stats / Totals ──────────────────────────────────────
+        $invoiceQuery = CompanyInvoice::query();
+        if ($companyId) {
+            $invoiceQuery->where('company_id', $companyId);
+        }
+
+        $totals = [
+            'total_invoices' => (clone $invoiceQuery)->count(),
+            'total_paid'     => (clone $invoiceQuery)->where('payment_status', 'paid')->count(),
+            'total_unpaid'   => (clone $invoiceQuery)->whereIn('payment_status', ['pending', 'overdue'])->count(),
+            'total_amount'   => (float) (clone $invoiceQuery)->sum('total_amount'),
+            'paid_amount'    => (float) (clone $invoiceQuery)->where('payment_status', 'paid')->sum('total_amount'),
+        ];
+
+        return \Helper::paginatedResponse($history, $totals);
     }
 
     public function plans(Request $request)

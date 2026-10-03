@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\Reports\ServiceReportController;
 use App\Http\Controllers\Api\Reports\CustomerReportController;
 use App\Http\Controllers\Api\Reports\PaymentReportController;
 use App\Http\Controllers\Api\Reports\StaffReportController;
+use App\Http\Controllers\SuperAdmin\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(LoginController::class)->group(function () {
@@ -39,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // super admin start
     Route::middleware(['super_admin'])->prefix('super-admin')->group(function () {
+
+        Route::get('/dashboard', [DashboardController::class, 'index']);
 
         Route::controller(PlanController::class)->prefix('/plans')->group(function () {
             Route::get('/', 'index');

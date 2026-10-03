@@ -543,7 +543,7 @@ class CompanyController extends Controller
 
             $slugName = Str::slug($company->company_name, '_');
             $ext = $file->getClientOriginalExtension();
-            $fileName = $company->id . '_' . $slugName . '.' . $ext;
+            $fileName = $company->id . '_' . $slugName . '_' . time() . '.' . $ext;
 
             $file->move($destinationPath, $fileName);
 
