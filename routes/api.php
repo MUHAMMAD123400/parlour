@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CompanyReportController;
 use App\Http\Controllers\Api\CompanySubscriptionController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DiscountController;
+use App\Http\Controllers\Api\InfoController;
 use App\Http\Controllers\Api\IpController;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\ModuleController;
@@ -151,6 +152,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     // super admin end
 
+
+    Route::get('/info', [InfoController::class, 'info']);
 
     // normal user
     Route::controller(CompanySubscriptionController::class)->prefix('subscription')->group(function () {
