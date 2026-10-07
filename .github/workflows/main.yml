@@ -8,7 +8,21 @@ jobs:
     steps:
       - name: 🚚 Get latest code
         uses: actions/checkout@v5
-      - name: 📂 Sync files
+
+      # Deploy from staging branch
+      - name: 📂 Sync files (staging)
+        if: github.ref == 'refs/heads/staging'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: 145.79.25.31
+          username: ${{ secrets.TEST_FTP_USERNAME }}
+          password: ${{ secrets.TEST_FTP_PASSWORD }}
+          protocol: ftp
+          server-dir: /
+
+      # Deploy from main branch
+      - name: 📂 Sync files (Main)
+        if: github.ref == 'refs/heads/main'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: 145.79.25.31
