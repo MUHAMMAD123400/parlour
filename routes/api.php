@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\ModuleController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\ServiceController;
@@ -66,15 +67,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{id}/show', 'show');
             Route::post('/{id}/update', 'update');
             Route::delete('/{id}/delete', 'destroy');
-        });
-
-        Route::controller(CompanyInvoiceController::class)->prefix('/invoices')->group(function () {
-            Route::get('/', 'index');
-            Route::post('store', 'store');
-            Route::get('/{id}/show', 'show');
-            Route::post('/{id}/update', 'update');
-            Route::delete('/{id}/delete', 'destroy');
-            Route::post('/{id}/payment-status', 'updatePaymentStatus');
         });
 
         Route::controller(CompanyReportController::class)->prefix('/company-report')->group(function () {
@@ -148,6 +140,23 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{company_id}/history', 'history');                     // company ki subscription history
             Route::post('{id}/payment-status', 'updatePaymentStatus');         // payment status mark karo
         });
+
+        Route::controller(CompanyInvoiceController::class)->prefix('/invoices')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+            Route::post('/{id}/payment-status', 'updatePaymentStatus');
+        });
+
+        Route::controller(PaymentMethodController::class)->prefix('/payment-methods')->group(function () {
+            Route::get('/', 'index');
+            Route::post('store', 'store');
+            Route::get('/{id}/show', 'show');
+            Route::post('/{id}/update', 'update');
+            Route::delete('/{id}/delete', 'destroy');
+        });
         // ─────────────────────────────────────────────────────────────────
     });
     // super admin end
@@ -155,7 +164,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/info', [InfoController::class, 'info']);
 
-    // normal user
+    // normal user / company
+    Route::get('/payment-methods', [PaymentMethodController::class, 'companyIndex']);
+
     Route::controller(CompanySubscriptionController::class)->prefix('subscription')->group(function () {
         Route::post('subscribe', 'subscribe');
         Route::post('unsubscribe', 'unsubscribe');
